@@ -27,8 +27,8 @@ export async function fetchNotes(token:string,events:any[],limit=12) {
   for(const a of e.attachments||[]){
    if(a.mimeType!=='application/vnd.google-apps.document'||!a.fileId)continue;
    try {const content=await(await googleFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(a.fileId)}/export?mimeType=text%2Fplain`,token)).text();
-    docs.push({eventId:e.id,event:e.summary,date:e.start?.dateTime||e.start?.date,url:a.fileUrl,text:content.slice(0,38000)});
-   }catch(err){docs.push({eventId:e.id,event:e.summary,date:e.start?.dateTime||e.start?.date,url:a.fileUrl,error:String(err),text:''})}
+    docs.push({eventId:e.id,event:e.summary,date:e.start?.dateTime||e.start?.date,url:a.fileUrl||`https://docs.google.com/document/d/${a.fileId}/edit`,text:content.slice(0,38000)});
+   }catch(err){docs.push({eventId:e.id,event:e.summary,date:e.start?.dateTime||e.start?.date,url:a.fileUrl||`https://docs.google.com/document/d/${a.fileId}/edit`,error:String(err),text:''})}
    if(docs.length>=limit)return docs;
   }
  }

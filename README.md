@@ -27,7 +27,7 @@ Local: `npm install && npm run dev`.
 
 - El archivo maestro es un **XLSX no nativo**, por eso se descarga y actualiza mediante Drive API. Se requiere permiso de edición sobre él.
 - El análisis automático usa **notas de Gemini** y sus transcripciones textuales accesibles. No procesa videos MP4 ni escucha audio.
-- Las ejecuciones analizan un máximo inicial de 12 documentos por lote; ampliar exige colas y paginación persistente.
+- Las ejecuciones analizan hasta 20 documentos por lote, comenzando por los eventos más recientes o los que coinciden con la integración seleccionada. Para un histórico exhaustivo se necesitan colas y paginación persistente.
 - Antes de usar en producción, verificar legalmente el tratamiento de datos del Poder Judicial por proveedores externos y habilitar controles institucionales de seguridad, retención y acceso. No desplegar información procesal en una aplicación pública sin esa aprobación.
 - Recomendado: backup del Excel y pruebas de escritura en una copia antes de operar sobre la fuente oficial.
 - NextAuth utiliza JWT de sesión protegido en cookies; nunca exhibir tokens OAuth en la interfaz ni los logs.
@@ -36,4 +36,15 @@ Local: `npm install && npm run dev`.
 
 ## Estado de publicación
 
-El conector Vercel respondió `403 forbidden` al intentar crear el proyecto. No se ha publicado esta app. Una vez habilitados los permisos de creación/despliegue y las credenciales externas, debe instalarse y validarse con datos de prueba antes de declararla operativa.
+El código reside en [Trigoat2612/actualizar-integraciones](https://github.com/Trigoat2612/actualizar-integraciones) y está vinculado con [el proyecto Vercel](https://vercel.com/miguel-trigosos-projects/actualizar-integraciones). La publicación de código no configura automáticamente OAuth ni Gemini.
+
+### Variables y habilitación
+Configurar en Vercel > Project > Settings > Environment Variables, en **Production**:
+- `NEXTAUTH_URL`: URL real de producción (por ejemplo `https://actualizar-integraciones.vercel.app`, solo si ese dominio existe).
+- `NEXTAUTH_SECRET`: secreto aleatorio de 32+ bytes. Generar fuera de GitHub.
+- `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`: OAuth Web Client autorizado para la ruta `/api/auth/callback/google`.
+- `GEMINI_API_KEY`: clave de Google AI Studio o Vertex apropiada según las políticas institucionales.
+- `ALLOWED_EMAIL=miguel.trigoso.pj@gmail.com`
+- `MASTER_FILE_ID=1tTnYZPYV-XTX4V_aX7TKK1yluPPf4qUn`
+
+El portal consulta `/api/health` y muestra **solo los nombres** de variables faltantes, nunca secretos. Tras configurar credenciales, es necesario **redeploy**. Ejecutar la revisión primero sobre una copia del maestro y verificar las fórmulas y estilos. La aprobación final de cambios es manual. El máximo por lote es de 20 documentos con notas accesibles. No hay tareas cron.
