@@ -34,8 +34,8 @@ export async function discover(token:string,from:string,to:string,mode:string,fi
  const events=await calendarList(token,from,to),pool=db();
  const batch=(await pool.query('INSERT INTO integraciones_laboral.analysis_batches(requested_from,requested_to,mode,integration_filter,status,found_events) VALUES($1,$2,$3,$4,$5,$6) RETURNING id',[from,to,mode,filter,'Registrado',events.length])).rows[0].id;
  let sourceCount=0,metadataUnavailable=0;
- for(const e of events){
-  const start=e.start?.dateTime||e.start?.date;if(!e.id||!start)continue;
+ const recordEvent=async(e:Event)=>{
+  const start=e.start?.dateTime||e.start?.date;if(!e.id||!start)return;
   const id=(await pool.query("INSERT INTO integraciones_laboral.calendar_events(calendar_id,event_id,title,start_at,end_at,event_url,event_status,google_updated_at,last_seen_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,NOW()) ON CONFLICT(calendar_id,event_id) DO UPDATE SET title=EXCLUDED.title,start_at=EXCLUDED.start_at,end_at=EXCLUDED.end_at,event_url=EXCLUDED.event_url,event_status=EXCLUDED.event_status,google_updated_at=EXCLUDED.google_updated_at,last_seen_at=NOW() RETURNING id",['primary',e.id,e.summary||'Sin título',localStart(start),e.end?.dateTime||e.end?.date?localStart(String(e.end?.dateTime||e.end?.date)):null,e.htmlLink||'',e.status||'confirmed',e.updated||null])).rows[0].id;
   for(const a of attachments(e)){
    if(!a.fileId)continue;
@@ -45,6 +45,7 @@ export async function discover(token:string,from:string,to:string,mode:string,fi
    await pool.query("INSERT INTO integraciones_laboral.calendar_event_sources(event_id,file_id,title,source_url,mime_type,google_modified_at,read_status) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(event_id,file_id) DO UPDATE SET title=EXCLUDED.title,source_url=EXCLUDED.source_url,mime_type=EXCLUDED.mime_type,read_status=CASE WHEN EXCLUDED.google_modified_at IS NOT NULL AND integraciones_laboral.calendar_event_sources.google_modified_at IS DISTINCT FROM EXCLUDED.google_modified_at AND integraciones_laboral.calendar_event_sources.read_status IN ('Leída','Parcial') THEN 'Revisión necesaria' ELSE integraciones_laboral.calendar_event_sources.read_status END,google_modified_at=COALESCE(EXCLUDED.google_modified_at,integraciones_laboral.calendar_event_sources.google_modified_at)",[id,a.fileId,meta.name||a.title||'Adjunto',a.fileUrl||'',mime,meta.modified,status]);
    sourceCount++;
   }
- }
+ };
+ for(let offset=0;offset<events.length;offset+=5){await Promise.all(events.slice(offset,offset+5).map(recordEvent));}
  return {batchId:Number(batch),found:events.length,attachmentReferences:sourceCount,metadataUnavailable};
 }
