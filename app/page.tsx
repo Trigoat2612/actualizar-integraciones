@@ -21,7 +21,7 @@ function Portal(){
  const [health,setHealth]=useState<Health|null>(null);
  const [from,setFrom]=useState('2026-11-04'),[to,setTo]=useState(today),[single,setSingle]=useState(false);
  const [day,setDay]=useState('2026-11-04'),[scope,setScope]=useState('Todas'),[force,setForce]=useState(false);
- const [sessions,setSessions]=useState<Session[]>([]),[integrations,setIntegrations]=useState<Integration[]>([]);
+ const [sessions,setSessions]=useState<Session[]>([]),[integrations,setIntegrations]=useState<Integration[]>([]),[pending,setPending]=useState<Array<{id:number;integration:string;session:string;pending:string;owner_team:string;source_url:string;happened_on:string}>>([]);
  const [detail,setDetail]=useState<Detail|null>(null),[selected,setSelected]=useState<number|null>(null);
  const [loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('');
  const [batchId,setBatchId]=useState<number|null>(null),[showHistory,setShowHistory]=useState<number|null>(null);
@@ -30,11 +30,11 @@ function Portal(){
  useEffect(()=>{if(session)refresh();},[session]);
  async function refresh(){
   try{
-   const [a,b]=await Promise.all([
+   const [a,b,c]=await Promise.all([
     request('/api/sessions?from='+encodeURIComponent(rangeFrom)+'&to='+encodeURIComponent(rangeTo)),
-    request('/api/integrations')
+    request('/api/integrations'),request('/api/pending')
    ]);
-   setSessions(a.sessions||[]);setIntegrations(b.integrations||[]);
+   setSessions(a.sessions||[]);setIntegrations(b.integrations||[]);setPending(c.pending||[]);
   }catch(e){setError(String(e instanceof Error?e.message:e));}
  }
  async function discover(){
@@ -85,7 +85,7 @@ function Portal(){
  }
  const sessionCount=sessions.length,scanned=sessions.filter(s=>Number(s.read_count)>0).length,
        sourceCount=sessions.reduce((n,s)=>n+Number(s.source_count),0),videos=sessions.reduce((n,s)=>n+Number(s.video_count),0);
- const relevantFindings=detail?.findings.filter(f=>!!f.pending&&f.review_status==='Aprobado')||[];
+ const relevantPending=pending.filter(f=>scope==='Todas'||f.integration===scope);
  return <main className="shell">
   <header className="top"><div className="brand">EJE <span>NO PENAL</span><small>Seguimiento de integraciones · Laboral</small></div>
    <div className="topright"><span className="tag">Bajo demanda</span>{session&&<button className="ghost" onClick={()=>signOut()}>Cerrar sesión</button>}</div>
@@ -158,7 +158,7 @@ function Portal(){
       </div>)}</div>
       <h3>Hallazgos por integración</h3>
       {!detail.findings.length&&<p className="muted">Aún no hay hallazgos identificados o aprobados para esta sesión.</p>}
-      {detail.findings.map(f=><article key={f.id} className="finding">
+      {detail.findings.filter(f=>scope==='Todas'||f.integration===scope).map(f=><article key={f.id} className="finding">
        <div className="findinghead"><b>{f.integration}</b><span>{f.review_status}</span></div>
        <p><b>Hecho:</b> {f.detail}</p>
        {f.agreement&&<p><b>Acuerdo:</b> {f.agreement}</p>}
@@ -180,10 +180,10 @@ function Portal(){
      {showHistory===i.id&&<div className="history"><p>Bitácora histórica importada del Excel y ampliada únicamente con propuestas aprobadas:</p><pre>{i.situational_log||'Sin historial documentado'}</pre></div>}
     </div>)}</div>
    </section>}
-   {tab==='pending'&&<section className="panel"><h2>Pendientes por integración</h2>
-    <p className="muted">Los pendientes se muestran dentro de cada sesión y en la hoja «Pendientes» del Excel exportado. Solo los hallazgos aprobados integran el seguimiento oficial.</p>
+   {tab==='pending'&&<section className="panel"><h2>Pendientes por integración ({relevantPending.length})</h2>
+    <p className="muted">Pendientes derivados de hallazgos aprobados. La atención o cierre posterior debe acreditarse con nueva evidencia; esta vista no determina por sí sola si siguen abiertos.</p>
     <div className="toolbar"><button className="light" onClick={()=>setTab('sessions')}>Ver sesiones</button><a href="/api/export" className="export">Descargar Excel</a></div>
-    {relevantFindings.map(f=><article key={f.id} className="finding"><b>{f.integration}</b><p>{f.pending}</p><span>{f.owner_team}</span></article>)}
+    {relevantPending.map(f=><article key={f.id} className="finding"><b>{f.integration}</b><p><b>Sesión:</b> {f.session}</p><p><b>Pendiente:</b> {f.pending}</p><p><b>Responsable:</b> {f.owner_team||'Por determinar'}</p>{f.source_url&&<a href={f.source_url} target="_blank" rel="noreferrer">Ver evidencia</a>}</article>)}
    </section>}
   </>}
   <footer>Programa EJE No Penal · Integraciones Laboral · Información de acceso restringido</footer>
