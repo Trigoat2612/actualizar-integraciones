@@ -1,50 +1,50 @@
-# Asistente de seguimiento EJE No Penal · Laboral
+# Actualizador EJE No Penal: Calendar + Neon + Vercel
 
-Aplicación Next.js de revisión **exclusivamente manual** de las 35 integraciones laborales. Archivo maestro: `1tTnYZPYV-XTX4V_aX7TKK1yluPPf4qUn` (Excel `.xlsx` alojado en Google Drive).
+Aplicación web privada de revisión **bajo demanda** para las 35 integraciones Laboral del Programa EJE No Penal. El catálogo y las bitácoras históricas están en **Neon**; Google Calendar y Drive son las fuentes de reuniones y transcripciones. No modifica el Excel original.
 
-## Funcionalidad
+## Capacidades implementadas
 
-- Login OAuth Google restringido al correo `ALLOWED_EMAIL`.
-- Botón **Ejecutar análisis** con periodo seleccionable (1, 2, 7, 14 días).
-- Busca eventos de Google Calendar en la cuenta autenticada y notas Gemini adjuntas accesibles.
-- Interpreta hechos, acuerdos, responsables y pendientes con la API Gemini. No presenta como examinadas grabaciones que no haya leído.
-- Presenta **propuestas de cambios** que se revisan antes de confirmar.
-- Solo tras confirmar, añade registros a la columna G del Excel original y a la hoja `Revisiones asistidas`; intenta evitar duplicados. Comprueba que el archivo no haya cambiado desde la revisión y vuelve a leerlo tras la escritura.
-- No existen cron jobs ni ejecuciones automáticas.
+- Selección de rango de fechas o fecha específica en hora Lima (America/Lima).
+- Descubrimiento paginado de eventos de Calendar y anexos de Drive; comparación de fechas de modificación.
+- Inventario incremental de sesiones y fuentes en Neon, sin duplicarlas por reiterar el rango.
+- Lectura por fragmentos de notas y transcripciones de texto con progreso persistente; si la fuente cambia, sus propuestas sin aprobar pasan a Desactualizado.
+- Análisis estructurado opcional con IA compatible con OpenAI Chat Completions y fragmento literal de evidencia.
+- Separación entre nota leída, fuente inaccesible y video pendiente. **No analiza videos** todavía.
+- Hallazgos propuestos por integración, aprobación o rechazo con auditoría; solo los aprobados se agregan a la bitácora normalizada.
+- Página de sesiones, detalle por integración, pendientes e historial.
+- Descarga XLSX con Seguimiento, Sesiones, Fuentes, Historial, Pendientes y Auditoría.
 
-## Requisitos para operar
+## Estado del esquema
 
-1. Proyecto Google Cloud con OAuth Consent Screen y OAuth 2.0 Web Application, incluyendo `https://TU-DOMINIO.vercel.app/api/auth/callback/google` en los redirect URIs.
-2. APIs habilitadas: Google Calendar API, Google Drive API.
-3. Solicitar permisos OAuth `calendar.readonly` y `drive` para la cuenta dueña. **El alcance Drive completo tiene implicancias de seguridad y puede requerir verificación de Google para uso externo.** Restringe la app a un único usuario y aplica el consentimiento apropiado.
-4. Una clave de Google Gemini API, custodiada exclusivamente como variable de entorno.
-5. Variables de entorno indicadas en `.env.example`. No introducir claves en código, GitHub ni en el navegador.
-6. Desplegar el repositorio en Vercel con framework Next.js, Node.js 22 o 24.
+Neon: proyecto seguimientopejenp, base neondb, esquema integraciones_laboral. El catálogo con 35 integraciones se importó anteriormente del Excel, conservando números combinados como 12 / 14. Las tablas adicionales se encuentran en db/migration_calendar.sql. La migración se aplicó en Neon el 9 de noviembre de 2026.
 
-Local: `npm install && npm run dev`.
+## Habilitación en Vercel
 
-## Observaciones y restricciones
+Vincular la rama main al proyecto existente actualizar-integraciones. En Project > Settings > Environment Variables configurar las variables de .env.example para Production y ejecutar un despliegue.
 
-- El archivo maestro es un **XLSX no nativo**, por eso se descarga y actualiza mediante Drive API. Se requiere permiso de edición sobre él.
-- El análisis automático usa **notas de Gemini** y sus transcripciones textuales accesibles. No procesa videos MP4 ni escucha audio.
-- Las ejecuciones analizan hasta 20 documentos por lote, comenzando por los eventos más recientes o los que coinciden con la integración seleccionada. Para un histórico exhaustivo se necesitan colas y paginación persistente.
-- Antes de usar en producción, verificar legalmente el tratamiento de datos del Poder Judicial por proveedores externos y habilitar controles institucionales de seguridad, retención y acceso. No desplegar información procesal en una aplicación pública sin esa aprobación.
-- Recomendado: backup del Excel y pruebas de escritura en una copia antes de operar sobre la fuente oficial.
-- NextAuth utiliza JWT de sesión protegido en cookies; nunca exhibir tokens OAuth en la interfaz ni los logs.
-- Si hay varias aprobaciones simultáneas, la comprobación de fecha de modificación reduce colisiones pero no implementa una transacción; restringir la cuenta a un operador.
-- Revisar las reglas de fecha y la zona horaria del proyecto, que está diseñado para `America/Lima`.
+1. DATABASE_URL: cadena de conexión pooled de Neon para neondb. Utilizar un rol limitado al esquema de este sistema, no permisos administrativos generales.
+2. NEXTAUTH_URL: URL real del portal, por ejemplo https://TU-DOMINIO.vercel.app.
+3. NEXTAUTH_SECRET: valor aleatorio de al menos 32 bytes.
+4. GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET: cliente OAuth web en Google Cloud.
+5. ALLOWED_EMAIL: correo del usuario autorizado a leer Calendar.
+6. En Google Cloud habilitar Google Calendar API y Google Drive API. Agregar como URI OAuth autorizada https://TU-DOMINIO/api/auth/callback/google. Solicitar calendar.readonly y drive.readonly. El conector de ChatGPT **no proporciona estas credenciales**.
+7. ANALYSIS_API_URL, ANALYSIS_API_KEY y ANALYSIS_MODEL: API externa Chat Completions compatible; la URL suele terminar en /v1/chat/completions.
+8. AI_PROCESSING_APPROVED=true únicamente después de verificar autorización institucional, seguridad, retención y uso de transcripciones judiciales con el proveedor.
 
-## Estado de publicación
+Visitar /api/health. Devuelve los nombres de variables pendientes y analysisReady, sin revelar secretos.
 
-El código reside en [Trigoat2612/actualizar-integraciones](https://github.com/Trigoat2612/actualizar-integraciones) y está vinculado con [el proyecto Vercel](https://vercel.com/miguel-trigosos-projects/actualizar-integraciones). La publicación de código no configura automáticamente OAuth ni Gemini.
+## Prueba funcional recomendada
 
-### Variables y habilitación
-Configurar en Vercel > Project > Settings > Environment Variables, en **Production**:
-- `NEXTAUTH_URL`: URL real de producción (por ejemplo `https://actualizar-integraciones.vercel.app`, solo si ese dominio existe).
-- `NEXTAUTH_SECRET`: secreto aleatorio de 32+ bytes. Generar fuera de GitHub.
-- `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`: OAuth Web Client autorizado para la ruta `/api/auth/callback/google`.
-- `GEMINI_API_KEY`: clave de Google AI Studio o Vertex apropiada según las políticas institucionales.
-- `ALLOWED_EMAIL=miguel.trigoso.pj@gmail.com`
-- `MASTER_FILE_ID=1tTnYZPYV-XTX4V_aX7TKK1yluPPf4qUn`
+- Autorizar acceso privado y seleccionar 04/11/2026 como fecha única.
+- Buscar las sesiones y comprobar su listado en Neon y enlaces originales.
+- Activar IA autorizada, analizar las notas de Conflicto de Autoridad y Acción Popular y comprobar la asociación de hallazgos SERNOT.
+- Confirmar que las discrepancias horarias de Cautelar no se atribuyan sin evidencia a SERNOT.
+- Repetir la misma fecha: no debe duplicarse ningún evento ni documento.
+- Aprobar una propuesta comprobada y validar la entrada del historial; repetir la aprobación no debe duplicar el registro.
+- Exportar Excel y corroborar exactamente 35 integraciones.
 
-El portal consulta `/api/health` y muestra **solo los nombres** de variables faltantes, nunca secretos. Tras configurar credenciales, es necesario **redeploy**. Ejecutar la revisión primero sobre una copia del maestro y verificar las fórmulas y estilos. La aprobación final de cambios es manual. El máximo por lote es de 20 documentos con notas accesibles. No hay tareas cron.
+## Limitaciones actuales
+
+La consulta de Calendar se realiza en una solicitud, útil para rangos de días o semanas. Para una revisión histórica masiva se requiere un trabajador con colas y reintentos duraderos. El modelo procesa transcripciones por secciones de hasta 18.000 caracteres; puede requerirse volver a pulsar analizar hasta completar la fuente. Los documentos con errores o videos sin transcribir nunca se consideran revisados por el mero descubrimiento. La fecha de un evento y el contenido no reemplazan la validación funcional por GSJ. Las acciones pendientes aprobadas necesitan una conciliación posterior para establecer su cierre real. La conexión y despliegue de producción solo se consideran operativos tras confirmar credenciales, build y pruebas.
+
+No ejecutar tareas automáticas programadas.
