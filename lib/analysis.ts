@@ -47,7 +47,7 @@ export async function analyzeSource(accessToken:string,eventId:number,scope='Tod
  const source=textual.find(s=>force||s.read_status!=='Leída'||Number(s.processed_chunks)<Number(s.total_chunks));
  if(!source)return {eventId,complete:true,message:'No hay documentos de texto pendientes',videosPending:sources.filter(s=>s.mime_type.startsWith('video/')).length};
  const names=(await pool.query('SELECT id,name FROM integraciones_laboral.integrations ORDER BY numero')).rows;
- const available=names.filter(n=>scope==='Todas'||n.name===scope);
+ const available=names; // La cobertura documental siempre incluye las 35 integraciones; el filtro se aplica a la presentación.
  if(!available.length)throw Error('Integración no incluida en el catálogo');
  let content='';
  try{
