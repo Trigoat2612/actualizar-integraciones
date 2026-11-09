@@ -1,21 +1,192 @@
 'use client';
-import {useState,useEffect} from 'react';
+import {useEffect,useState} from 'react';
 import {signIn,signOut,useSession,SessionProvider} from 'next-auth/react';
-type F={integration:string,date:string,event:string,sourceUrl:string,happened:string,agreed:string,pending:string,responsible:string,status:string,evidenceLevel:string};
-function Portal(){const {data:session,status}=useSession();const [days,setDays]=useState(2);const [loading,setLoading]=useState(false);const [saving,setSaving]=useState(false);const [data,setData]=useState<any>(null);const [error,setError]=useState('');const [filter,setFilter]=useState('');const [integration,setIntegration]=useState('all');const [integrations,setIntegrations]=useState<string[]>([]);
- const [health,setHealth]=useState<{ready:boolean,missing:string[]}|null>(null);
- useEffect(()=>{fetch('/api/health').then(r=>r.json()).then(setHealth).catch(()=>{});},[]);
- useEffect(()=>{if(session)fetch('/api/integrations').then(r=>r.json()).then(v=>{if(Array.isArray(v.integrations))setIntegrations(v.integrations)}).catch(()=>{});},[session]);
- async function run(){setLoading(true);setError('');setData(null);try{const r=await fetch('/api/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({days,integration})});const x=await r.json();if(!r.ok)throw Error(x.error);setData(x)}catch(e:any){setError(e.message)}finally{setLoading(false)}}
- async function save(){if(!data?.findings?.length||!window.confirm(`¿Confirmas escribir ${data.proposedNewRecords} nuevos registros en el archivo maestro?`))return;setSaving(true);setError('');try{const r=await fetch('/api/master',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true,findings:data.findings,masterModified:data.masterModified,scannedEventIds:data.scannedEventIds})});const x=await r.json();if(!r.ok)throw Error(x.error);alert(`Actualización verificada: ${x.added} registros añadidos.`);setData(null)}catch(e:any){setError(e.message)}finally{setSaving(false)}}
- const findings:(F[])=(data?.findings||[]).filter((f:F)=>[f.integration,f.pending,f.responsible].join(' ').toLowerCase().includes(filter.toLowerCase()));
- return <main className="shell"><header><div className="logo">EJE<span>·</span>NP</div><div className="header-end"><span className="pill">Solo bajo demanda</span>{session?<button className="subtle" onClick={()=>signOut()}>Cerrar sesión</button>:null}</div></header><section className="hero"><p className="eyebrow">PODER JUDICIAL · ESPECIALIDAD LABORAL</p><h1>Control de integraciones</h1><p>Contrasta lo ocurrido en las sesiones con la bitácora del archivo maestro. Todo cambio requiere tu autorización.</p></section>
- {!session?<section className="panel login"><h2>Acceso institucional</h2><p>Accede con la cuenta vinculada al calendario y al archivo maestro. Las credenciales se gestionan mediante Google OAuth.</p>{health&&!health.ready?<div className="error">Configuración pendiente en Vercel: {health.missing.join(', ')}. <a href="https://vercel.com/miguel-trigosos-projects/actualizar-integraciones/settings/environment-variables" target="_blank" rel="noreferrer">Abrir variables de entorno</a>.</div>:null}
- <button disabled={health?.ready===false} onClick={()=>signIn('google')}>Iniciar sesión con Google</button><p className="muted">Cuenta autorizada: miguel.trigoso.pj@gmail.com</p></section>:<>
- <section className="kpis"><article><small>Integraciones</small><strong>35</strong><span>Inventario maestro</span></article><article><small>Fuente</small><strong>Calendar</strong><span>Notas Gemini y adjuntos</span></article><article><small>Modalidad</small><strong>Manual</strong><span>Sin tareas programadas</span></article></section>
- <section className="panel action"><div><h2>Ejecutar revisión</h2><p>Busca reuniones recientes, extrae hechos y acuerdos, y propone actualizaciones. Primero revisas; después autorizas la escritura.</p><a href="https://docs.google.com/spreadsheets/d/1tTnYZPYV-XTX4V_aX7TKK1yluPPf4qUn/edit" target="_blank" rel="noreferrer">Abrir archivo maestro ↗</a></div><div className="controls"><label htmlFor="integration">Integración</label><select id="integration" value={integration} onChange={e=>setIntegration(e.target.value)}><option value="all">Todas las integraciones</option>{integrations.map(n=><option key={n} value={n}>{n}</option>)}</select><label htmlFor="days">Periodo</label><select id="days" value={days} onChange={e=>setDays(Number(e.target.value))}><option value={1}>Último día</option><option value={2}>Últimos 2 días</option><option value={7}>Últimos 7 días</option><option value={14}>Últimos 14 días</option></select><button onClick={run} disabled={loading}>{loading?'Analizando sesiones…':'▶ Ejecutar análisis'}</button></div></section>
- {error&&<div className="error">{error}</div>}
- {data&&<section className="panel results"><div className="results-title"><div><p className="eyebrow">RESULTADOS DE LA REVISIÓN</p><h2>{data.proposedNewRecords} registros propuestos</h2><p>{data.foundEvents} eventos encontrados · {data.notesAccessible} notas consultadas · {data.notesInaccessible} archivos no accesibles · máximo {data.documentLimit} documentos por lote</p></div><button className="save" onClick={save} disabled={saving||!data.proposedNewRecords}>{saving?'Guardando…':'Aprobar y actualizar Excel'}</button></div>{data.coverageWarning&&<div className="error">{data.coverageWarning}</div>}<div className="notice">La información se obtiene de notas accesibles. No constituye revisión directa de las grabaciones. Ningún registro se escribe sin tu aprobación.</div><input className="search" placeholder="Filtrar por integración, pendiente o responsable" value={filter} onChange={e=>setFilter(e.target.value)}/><div className="cards">{findings.map((f,i)=><article key={i} className="finding"><div className="finding-head"><b>{f.integration}</b><span>{f.date}</span></div><p><b>Hecho:</b> {f.happened}</p><p><b>Acuerdo:</b> {f.agreed}</p><p><b>Pendiente:</b> {f.pending}</p><p><b>Responsable:</b> {f.responsible}</p><p><b>Estado propuesto:</b> {f.status}</p><a href={f.sourceUrl} target="_blank" rel="noreferrer">Ver evidencia ↗</a></article>)}</div>{!findings.length&&<p>No hay registros nuevos documentados para este filtro.</p>}</section>}
- </>}
- <footer>Programa EJE No Penal · Seguimiento de integraciones · <span>Acceso restringido</span></footer></main>}
+
+type Session={id:number;title:string;start_at:string;event_url:string;source_count:number;read_count:number;video_count:number;findings_count:number;integrations:string|null};
+type Integration={id:number;source_numero:string;name:string;status:string;dependency:string;criticality:string;situational_log:string};
+type Source={id:number;title:string;source_url:string;mime_type:string;read_status:string;processed_chunks:number;total_chunks:number;error_detail:string};
+type Finding={id:number;integration:string;happened_on:string;detail:string;agreement:string;pending:string;owner_team:string;proposed_status:string;evidence_excerpt:string;review_status:string;source_url:string};
+type Detail={event:Session;sources:Source[];findings:Finding[]};
+type Health={ready:boolean;missing:string[];analysisReady:boolean};
+const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Lima'});
+const asDay=(s:string)=>s?.slice(0,10)||'';
+const lima=(s:string)=>new Intl.DateTimeFormat('es-PE',{timeZone:'America/Lima',dateStyle:'medium',timeStyle:'short'}).format(new Date(s));
+async function request(url:string,init?:RequestInit){
+ const r=await fetch(url,{...init,cache:'no-store'}),json=await r.json();
+ if(!r.ok)throw Error(json.error||'Error de solicitud');return json;
+}
+function Portal(){
+ const {data:session,status}=useSession();
+ const [tab,setTab]=useState<'sessions'|'integrations'|'pending'>('sessions');
+ const [health,setHealth]=useState<Health|null>(null);
+ const [from,setFrom]=useState('2026-11-04'),[to,setTo]=useState(today),[single,setSingle]=useState(false);
+ const [day,setDay]=useState('2026-11-04'),[scope,setScope]=useState('Todas'),[force,setForce]=useState(false);
+ const [sessions,setSessions]=useState<Session[]>([]),[integrations,setIntegrations]=useState<Integration[]>([]);
+ const [detail,setDetail]=useState<Detail|null>(null),[selected,setSelected]=useState<number|null>(null);
+ const [loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('');
+ const [batchId,setBatchId]=useState<number|null>(null),[showHistory,setShowHistory]=useState<number|null>(null);
+ const rangeFrom=single?day:from,rangeTo=single?day:to;
+ useEffect(()=>{request('/api/health').then(setHealth).catch(()=>{});},[]);
+ useEffect(()=>{if(session)refresh();},[session]);
+ async function refresh(){
+  try{
+   const [a,b]=await Promise.all([
+    request('/api/sessions?from='+encodeURIComponent(rangeFrom)+'&to='+encodeURIComponent(rangeTo)),
+    request('/api/integrations')
+   ]);
+   setSessions(a.sessions||[]);setIntegrations(b.integrations||[]);
+  }catch(e){setError(String(e instanceof Error?e.message:e));}
+ }
+ async function discover(){
+  if(!rangeFrom||!rangeTo||rangeFrom>rangeTo){setError('Selecciona un periodo válido');return;}
+  setLoading(true);setError('');setMessage('');
+  try{
+   const r=await request('/api/calendar/discover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({from:rangeFrom,to:rangeTo,integration:scope,mode:force?'forzar':'incremental'})});
+   setBatchId(r.batchId);
+   setMessage('Sesiones encontradas: '+r.found+'. Referencias de adjuntos: '+r.attachmentReferences+'. Se registró el inventario en Neon sin analizar todavía los videos.');
+   await refresh();
+  }catch(e){setError(String(e instanceof Error?e.message:e));}
+  finally{setLoading(false)}
+ }
+ async function openSession(id:number){
+  setSelected(id);setDetail(null);setError('');
+  try{setDetail(await request('/api/sessions/'+id));}catch(e){setError(String(e instanceof Error?e.message:e));}
+ }
+ async function processSelected(reprocess=false){
+  if(selected===null)return;
+  setBusy(true);setError('');setMessage('');
+  try{
+   const results:string[]=[];let processed=0;
+   for(let step=0;step<8;step++){
+    const r=await request('/api/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventId:selected,integration:scope,force:reprocess&&step===0,batchId})});
+    if(r.error){results.push('Fuente no accesible: '+r.error);break;}
+    if(r.message){results.push(r.message);break;}
+    processed++;results.push('Fragmento '+r.processed+'/'+r.total+'; '+r.added+' hallazgos nuevos.');
+    if(r.complete)break;
+    if(!r.notesRemaining&&r.processed>=r.total)break;
+   }
+   setMessage(results.join(' ')+' Se conserva el avance; ejecuta de nuevo si hay documentos pendientes.');
+   await openSession(selected);await refresh();
+  }catch(e){setError(String(e instanceof Error?e.message:e))}
+  finally{setBusy(false)}
+ }
+ async function decide(f:Finding,decision:'Aprobado'|'Rechazado'){
+  const ok=window.confirm((decision==='Aprobado'?'¿Aprobar e incorporar a la bitácora de Neon?':'¿Rechazar este hallazgo?')+' '+f.integration);
+  if(!ok)return;
+  const reason=decision==='Rechazado'?(window.prompt('Motivo de rechazo (opcional):')||''):'';
+  setBusy(true);setError('');
+  try{
+   await request('/api/findings/'+f.id+'/decision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({decision,confirm:true,reason})});
+   setMessage('Decisión guardada con auditoría: '+decision+'.');
+   if(selected!==null)await openSession(selected);
+   await refresh();
+  }catch(e){setError(String(e instanceof Error?e.message:e))}
+  finally{setBusy(false)}
+ }
+ const sessionCount=sessions.length,scanned=sessions.filter(s=>Number(s.read_count)>0).length,
+       sourceCount=sessions.reduce((n,s)=>n+Number(s.source_count),0),videos=sessions.reduce((n,s)=>n+Number(s.video_count),0);
+ const relevantFindings=detail?.findings.filter(f=>!!f.pending&&f.review_status==='Aprobado')||[];
+ return <main className="shell">
+  <header className="top"><div className="brand">EJE <span>NO PENAL</span><small>Seguimiento de integraciones · Laboral</small></div>
+   <div className="topright"><span className="tag">Bajo demanda</span>{session&&<button className="ghost" onClick={()=>signOut()}>Cerrar sesión</button>}</div>
+  </header>
+  <section className="hero"><div className="eyebrow">GESTIÓN TÉCNICA Y FUNCIONAL</div><h1>Actualizador de integraciones</h1>
+   <p>Revisa sesiones de Calendar, contrasta transcripciones y conserva cada avance en Neon, sin perder la bitácora histórica.</p></section>
+  {!session?<section className="panel login">
+   <h2>Acceso privado</h2><p>El portal solo permite ingresar con la cuenta autorizada de Google Calendar. Los resultados se almacenan en Neon.</p>
+   {health&&!health.ready&&<div className="warn">Configuración pendiente: {health.missing.join(', ')}.</div>}
+   <button onClick={()=>signIn('google')} disabled={status==='loading'||health?.ready===false}>Ingresar con Google</button>
+  </section>:<>
+   <section className="metrics">
+    <div><span>Integraciones</span><strong>{integrations.length}</strong><small>Inventario Neon</small></div>
+    <div><span>Sesiones en rango</span><strong>{sessionCount}</strong><small>{scanned} con notas leídas</small></div>
+    <div><span>Fuentes identificadas</span><strong>{sourceCount}</strong><small>{videos} videos sin revisión automática</small></div>
+    <div><span>IA</span><strong className="short">{health?.analysisReady?'Configurada':'Pendiente'}</strong><small>Debe estar autorizada</small></div>
+   </section>
+   <section className="panel">
+    <div className="sectionhead"><h2>Ejecutar revisión manual</h2><span>Calendar: {session.user?.email}</span></div>
+    <div className="fields">
+     <label><span>Modalidad</span><select value={single?'one':'range'} onChange={e=>setSingle(e.target.value==='one')}><option value="range">Rango de fechas</option><option value="one">Fecha específica</option></select></label>
+     {single?<label><span>Fecha</span><input type="date" value={day} onChange={e=>setDay(e.target.value)}/></label>:<>
+      <label><span>Desde</span><input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>
+      <label><span>Hasta</span><input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label></>}
+     <label><span>Integración a analizar</span><select value={scope} onChange={e=>setScope(e.target.value)}>
+      <option value="Todas">Todas las integraciones</option>
+      {integrations.map(i=><option key={i.id} value={i.name}>{i.name}</option>)}
+     </select></label>
+    </div>
+    <div className="toolbar">
+     <button onClick={discover} disabled={loading}>{loading?'Consultando Calendar...':'Buscar sesiones y registrar avance'}</button>
+     <button className="light" onClick={refresh} disabled={loading}>Consultar guardadas</button>
+     <label className="check"><input type="checkbox" checked={force} onChange={e=>setForce(e.target.checked)}/>Revisión forzada</label>
+     <a href="/api/export" className="export">Exportar a Excel</a>
+    </div>
+    <p className="helper">Buscar sesiones registra los eventos y documentos, pero no presupone que fueron analizados. El procesamiento de transcripciones se inicia por sesión.</p>
+   </section>
+   {error&&<div className="warn">{error}</div>}
+   {message&&<div className="success">{message}</div>}
+   <nav className="tabs">
+    <button className={tab==='sessions'?'active':''} onClick={()=>setTab('sessions')}>Sesiones</button>
+    <button className={tab==='integrations'?'active':''} onClick={()=>setTab('integrations')}>Por integración</button>
+    <button className={tab==='pending'?'active':''} onClick={()=>setTab('pending')}>Pendientes revisados</button>
+   </nav>
+   {tab==='sessions'&&<div className="twocol">
+    <section className="panel sessionlist">
+     <h2>Sesiones encontradas</h2>
+     {!sessions.length&&<p className="muted">No hay sesiones registradas para el periodo. Ejecuta la búsqueda para consultar Calendar.</p>}
+     {sessions.map(s=><button key={s.id} className={'sessionitem '+(selected===s.id?'selected':'')} onClick={()=>openSession(s.id)}>
+      <b>{s.title}</b><small>{lima(s.start_at)}</small>
+      <span>{s.read_count}/{s.source_count} fuentes leídas · {s.findings_count} hallazgos</span>
+      {s.video_count>0&&<em>{s.video_count} video(s) pendiente(s)</em>}
+     </button>)}
+    </section>
+    <section className="panel sessiondetail">
+     {!detail?<div className="empty"><h2>Detalle de sesión</h2><p>Selecciona una sesión para visualizar las fuentes, integraciones, acuerdos y pendientes identificados.</p></div>:<>
+      <div className="sectionhead"><h2>{detail.event.title}</h2><a href={detail.event.event_url} target="_blank" rel="noreferrer">Abrir Calendar</a></div>
+      <p className="muted">{lima(detail.event.start_at)}</p>
+      <div className="toolbar">
+       <button onClick={()=>processSelected(false)} disabled={busy||!health?.analysisReady}>{busy?'Procesando...':'Analizar siguientes fragmentos'}</button>
+       <button className="light" onClick={()=>processSelected(true)} disabled={busy||!health?.analysisReady}>Reprocesar</button>
+      </div>
+      {!health?.analysisReady&&<div className="notice">El análisis con IA está deshabilitado hasta configurar el proveedor y obtener la autorización necesaria. La consulta de sesiones sigue disponible.</div>}
+      <h3>Fuentes</h3>
+      {!detail.sources.length&&<p className="muted">No hay documentos asociados a esta sesión.</p>}
+      <div className="sources">{detail.sources.map(s=><div key={s.id} className="source">
+       <div><b>{s.title}</b><small>{s.read_status} · {s.processed_chunks}/{s.total_chunks} fragmentos</small></div>
+       {s.source_url&&<a href={s.source_url} target="_blank" rel="noreferrer">Fuente</a>}
+       {s.error_detail&&<p className="muted">{s.error_detail}</p>}
+      </div>)}</div>
+      <h3>Hallazgos por integración</h3>
+      {!detail.findings.length&&<p className="muted">Aún no hay hallazgos identificados o aprobados para esta sesión.</p>}
+      {detail.findings.map(f=><article key={f.id} className="finding">
+       <div className="findinghead"><b>{f.integration}</b><span>{f.review_status}</span></div>
+       <p><b>Hecho:</b> {f.detail}</p>
+       {f.agreement&&<p><b>Acuerdo:</b> {f.agreement}</p>}
+       {f.pending&&<p><b>Pendiente:</b> {f.owner_team||'Por determinar'}: {f.pending}</p>}
+       <p className="evidence"><b>Evidencia:</b> {f.evidence_excerpt} {f.source_url&&<a href={f.source_url} target="_blank" rel="noreferrer">Ver fuente</a>}</p>
+       {f.review_status==='Propuesto'&&<div className="decisions">
+        <button onClick={()=>decide(f,'Aprobado')} disabled={busy}>Aprobar bitácora</button>
+        <button className="light" onClick={()=>decide(f,'Rechazado')} disabled={busy}>Rechazar</button>
+       </div>}
+      </article>)}
+     </>}
+    </section>
+   </div>}
+   {tab==='integrations'&&<section className="panel"><h2>Seguimiento por integración</h2>
+    <div className="integrations">{integrations.map(i=><div key={i.id} className="integration">
+     <button className="integrationtop" onClick={()=>setShowHistory(showHistory===i.id?null:i.id)}>
+      <b>{i.source_numero} · {i.name}</b><span>{i.status} · {i.dependency||'Sin dependencia registrada'}</span>
+     </button>
+     {showHistory===i.id&&<div className="history"><p>Bitácora histórica importada del Excel y ampliada únicamente con propuestas aprobadas:</p><pre>{i.situational_log||'Sin historial documentado'}</pre></div>}
+    </div>)}</div>
+   </section>}
+   {tab==='pending'&&<section className="panel"><h2>Pendientes por integración</h2>
+    <p className="muted">Los pendientes se muestran dentro de cada sesión y en la hoja «Pendientes» del Excel exportado. Solo los hallazgos aprobados integran el seguimiento oficial.</p>
+    <div className="toolbar"><button className="light" onClick={()=>setTab('sessions')}>Ver sesiones</button><a href="/api/export" className="export">Descargar Excel</a></div>
+    {relevantFindings.map(f=><article key={f.id} className="finding"><b>{f.integration}</b><p>{f.pending}</p><span>{f.owner_team}</span></article>)}
+   </section>}
+  </>}
+  <footer>Programa EJE No Penal · Integraciones Laboral · Información de acceso restringido</footer>
+ </main>;
+}
 export default function Home(){return <SessionProvider><Portal/></SessionProvider>}
