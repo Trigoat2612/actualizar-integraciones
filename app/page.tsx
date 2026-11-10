@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';
 import {signIn,signOut,useSession,SessionProvider} from 'next-auth/react';
+import BaselineWorkspace from './components/BaselineWorkspace';
 
 type Session={id:number;title:string;start_at:string;event_url:string;source_count:number;read_count:number;video_count:number;findings_count:number;integrations:string|null};
 type Integration={id:number;source_numero:string;name:string;status:string;dependency:string;criticality:string;situational_log:string};
@@ -17,9 +18,9 @@ async function request(url:string,init?:RequestInit){
 }
 function Portal(){
  const {data:session,status}=useSession();
- const [tab,setTab]=useState<'sessions'|'integrations'|'pending'>('sessions');
+ const [tab,setTab]=useState<'baseline'|'sessions'|'integrations'|'pending'>('baseline');
  const [health,setHealth]=useState<Health|null>(null);
- const [from,setFrom]=useState('2026-11-04'),[to,setTo]=useState(today),[single,setSingle]=useState(false);
+ const [from,setFrom]=useState('2026-11-04'),[to,setTo]=useState(today),[single,setSingle]=useState(true);
  const [day,setDay]=useState('2026-11-04'),[scope,setScope]=useState('Todas'),[force,setForce]=useState(false);
  const [sessions,setSessions]=useState<Session[]>([]),[integrations,setIntegrations]=useState<Integration[]>([]),[pending,setPending]=useState<Array<{id:number;integration:string;session:string;pending:string;owner_team:string;source_url:string;happened_on:string}>>([]);
  const [detail,setDetail]=useState<Detail|null>(null),[selected,setSelected]=useState<number|null>(null);
@@ -101,7 +102,7 @@ function Portal(){
    <div className="topright"><span className="tag">Bajo demanda</span>{session&&<button className="ghost" onClick={()=>signOut()}>Cerrar sesión</button>}</div>
   </header>
   <section className="hero"><div className="eyebrow">GESTIÓN TÉCNICA Y FUNCIONAL</div><h1>Actualizador de integraciones</h1>
-   <p>Revisa sesiones de Calendar, contrasta transcripciones y conserva cada avance en Neon, sin perder la bitácora histórica.</p></section>
+   <p>Conserva el Excel como línea base, coteja las sesiones de Calendar y revisa en Neon las propuestas generadas desde ChatGPT.</p></section>
   {!session?<section className="panel login">
    <h2>Acceso privado</h2><p>El portal solo permite ingresar con la cuenta autorizada de Google Calendar. Los resultados se almacenan en Neon.</p>
    {health&&!health.ready&&<div className="warn">Configuración pendiente: {health.missing.join(', ')}.</div>}
@@ -111,10 +112,10 @@ function Portal(){
     <div><span>Integraciones</span><strong>{integrations.length}</strong><small>Inventario Neon</small></div>
     <div><span>Sesiones en rango</span><strong>{sessionCount}</strong><small>{scanned} con notas leídas</small></div>
     <div><span>Fuentes identificadas</span><strong>{sourceCount}</strong><small>{videos} videos sin revisión automática</small></div>
-    <div><span>IA</span><strong className="short">{health?.analysisReady?'Configurada':'Pendiente'}</strong><small>Debe estar autorizada</small></div>
+    <div><span>Actualización</span><strong className="short">ChatGPT + Neon</strong><small>Sin consumo de OpenAI API en la web</small></div>
    </section>
    <section className="panel">
-    <div className="sectionhead"><h2>Ejecutar revisión manual</h2><span>Calendar: {session.user?.email}</span></div>
+    <div className="sectionhead"><h2>Consultar sesiones y cotejar historial</h2><span>Calendar: {session.user?.email}</span></div>
     <div className="fields">
      <label><span>Modalidad</span><select value={single?'one':'range'} onChange={e=>setSingle(e.target.value==='one')}><option value="range">Rango de fechas</option><option value="one">Fecha específica</option></select></label>
      {single?<label><span>Fecha</span><input type="date" value={day} onChange={e=>setDay(e.target.value)}/></label>:<>
@@ -131,23 +132,18 @@ function Portal(){
      <label className="check"><input type="checkbox" checked={force} onChange={e=>setForce(e.target.checked)}/>Revisión forzada</label>
      <a href="/api/export" className="export">Exportar a Excel</a>
     </div>
-    <p className="helper">Buscar sesiones registra los eventos y documentos, pero no presupone que fueron analizados. El procesamiento de transcripciones se inicia por sesión.</p>
-    <div className="notice"><b>Comprobar OpenAI sin enviar información judicial:</b> la prueba utiliza exclusivamente un acta ficticia incorporada al código, no guarda hallazgos ni cambia estados de las integraciones.</div>
-    <div className="toolbar"><button className="light" onClick={syntheticTest} disabled={busy||!health?.analysisConfigured}>{busy?'Probando OpenAI...':'Ejecutar prueba sintética de OpenAI'}</button>
-      {!health?.analysisConfigured&&<span className="muted">Configura ANALYSIS_API_URL, ANALYSIS_API_KEY y ANALYSIS_MODEL en Vercel.</span>}
-    </div>
-    {syntheticResult&&<div className="notice"><b>Prueba OpenAI: {syntheticResult.validFindings} hallazgos ficticios con evidencia comprobable · {syntheticResult.model}</b>
-       {syntheticResult.findings.map((f,i)=><p key={i}><b>{f.integration}:</b> {f.happened} <b>Pendiente:</b> {f.pending} <b>Responsable:</b> {f.responsible}</p>)}
-       <p>Esta comprobación no autoriza el envío de transcripciones de Calendar.</p>
-    </div>}
+    <p className="helper">Buscar sesiones registra eventos y documentos de Calendar en Neon. La revisión técnica y funcional se realiza desde ChatGPT y las propuestas se aprueban en la web. El inventario por sí mismo no acredita que una sesión fue revisada.</p>
+    <div className="notice"><b>Sin API de pago:</b> la web no envía transcripciones a proveedores externos de IA. La lectura y el análisis de sesiones se gestionan bajo demanda desde ChatGPT; Neon conserva la línea base, los cotejos y las propuestas para aprobación.</div>
    </section>
    {error&&<div className="warn">{error}</div>}
    {message&&<div className="success">{message}</div>}
    <nav className="tabs">
+    <button className={tab==='baseline'?'active':''} onClick={()=>setTab('baseline')}>Línea base y cotejo</button>
     <button className={tab==='sessions'?'active':''} onClick={()=>setTab('sessions')}>Sesiones</button>
     <button className={tab==='integrations'?'active':''} onClick={()=>setTab('integrations')}>Por integración</button>
     <button className={tab==='pending'?'active':''} onClick={()=>setTab('pending')}>Pendientes revisados</button>
    </nav>
+   {tab==='baseline'&&<BaselineWorkspace from={rangeFrom} to={rangeTo} integrations={integrations} onRefresh={refresh}/>}
    {tab==='sessions'&&<div className="twocol">
     <section className="panel sessionlist">
      <h2>Sesiones encontradas</h2>
@@ -162,11 +158,7 @@ function Portal(){
      {!detail?<div className="empty"><h2>Detalle de sesión</h2><p>Selecciona una sesión para visualizar las fuentes, integraciones, acuerdos y pendientes identificados.</p></div>:<>
       <div className="sectionhead"><h2>{detail.event.title}</h2><a href={detail.event.event_url} target="_blank" rel="noreferrer">Abrir Calendar</a></div>
       <p className="muted">{lima(detail.event.start_at)}</p>
-      <div className="toolbar">
-       <button onClick={()=>processSelected(false)} disabled={busy||!health?.analysisReady}>{busy?'Procesando...':'Analizar siguientes fragmentos'}</button>
-       <button className="light" onClick={()=>processSelected(true)} disabled={busy||!health?.analysisReady}>Reprocesar</button>
-      </div>
-      {!health?.analysisReady&&<div className="notice">El análisis con IA está deshabilitado hasta configurar el proveedor y obtener la autorización necesaria. La consulta de sesiones sigue disponible.</div>}
+      <div className="notice">Los documentos se cotejan desde ChatGPT. Las propuestas de actualización aparecen en <b>Línea base y cotejo</b>; la revisión y aprobación se mantienen bajo tu control.</div>
       <h3>Fuentes</h3>
       {!detail.sources.length&&<p className="muted">No hay documentos asociados a esta sesión.</p>}
       <div className="sources">{detail.sources.map(s=><div key={s.id} className="source">
@@ -195,7 +187,7 @@ function Portal(){
      <button className="integrationtop" onClick={()=>setShowHistory(showHistory===i.id?null:i.id)}>
       <b>{i.source_numero} · {i.name}</b><span>{i.status} · {i.dependency||'Sin dependencia registrada'}</span>
      </button>
-     {showHistory===i.id&&<div className="history"><p>Bitácora histórica importada del Excel y ampliada únicamente con propuestas aprobadas:</p><pre>{i.situational_log||'Sin historial documentado'}</pre></div>}
+     {showHistory===i.id&&<div className="history"><p>Bitácora histórica del Excel oficial; solo se amplía con cambios nuevos aprobados:</p><pre>{i.situational_log||'Sin historial documentado'}</pre></div>}
     </div>)}</div>
    </section>}
    {tab==='pending'&&<section className="panel"><h2>Pendientes por integración ({relevantPending.length})</h2>
