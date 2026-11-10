@@ -9,6 +9,7 @@ type Source={id:number;title:string;source_url:string;mime_type:string;read_stat
 type Finding={id:number;integration:string;happened_on:string;detail:string;agreement:string;pending:string;owner_team:string;proposed_status:string;evidence_excerpt:string;review_status:string;source_url:string};
 type Detail={event:Session;sources:Source[];findings:Finding[]};
 type Health={ready:boolean;missing:string[];analysisReady:boolean;analysisConfigured:boolean};
+type HistoricalPending={id:number;source_numero:string;integration:string;status:string;dependency:string;latest_entry:string;last_pending:string;last_pending_date:string;source:string};
 const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Lima'});
 const asDay=(s:string)=>s?.slice(0,10)||'';
 const lima=(s:string)=>new Intl.DateTimeFormat('es-PE',{timeZone:'America/Lima',dateStyle:'medium',timeStyle:'short'}).format(new Date(s));
@@ -24,6 +25,7 @@ function Portal(){
  const [day,setDay]=useState('2026-11-04'),[scope,setScope]=useState('Todas'),[force,setForce]=useState(false);
  const [sessions,setSessions]=useState<Session[]>([]),[integrations,setIntegrations]=useState<Integration[]>([]),[pending,setPending]=useState<Array<{id:number;integration:string;session:string;pending:string;owner_team:string;source_url:string;happened_on:string}>>([]);
  const [detail,setDetail]=useState<Detail|null>(null),[selected,setSelected]=useState<number|null>(null);
+ const [historical,setHistorical]=useState<HistoricalPending[]>([]);
  const [loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('');
  const [batchId,setBatchId]=useState<number|null>(null),[showHistory,setShowHistory]=useState<number|null>(null);
  const [syntheticResult,setSyntheticResult]=useState<{model:string;validFindings:number;checks:{expectedIntegration:boolean;evidenceGrounded:boolean};findings:Array<{integration:string;happened:string;pending:string;responsible:string;evidence:string}>}|null>(null);
@@ -32,11 +34,11 @@ function Portal(){
  useEffect(()=>{if(session)refresh();},[session]);
  async function refresh(){
   try{
-   const [a,b,c]=await Promise.all([
+   const [a,b,c,d]=await Promise.all([
     request('/api/sessions?from='+encodeURIComponent(rangeFrom)+'&to='+encodeURIComponent(rangeTo)),
-    request('/api/integrations'),request('/api/pending')
+    request('/api/integrations'),request('/api/pending'),request('/api/baseline/pending')
    ]);
-   setSessions(a.sessions||[]);setIntegrations(b.integrations||[]);setPending(c.pending||[]);
+   setSessions(a.sessions||[]);setIntegrations(b.integrations||[]);setPending(c.pending||[]);setHistorical(d.historical||[]);
   }catch(e){setError(String(e instanceof Error?e.message:e));}
  }
  async function syntheticTest(){
@@ -141,7 +143,7 @@ function Portal(){
     <button className={tab==='baseline'?'active':''} onClick={()=>setTab('baseline')}>Línea base y cotejo</button>
     <button className={tab==='sessions'?'active':''} onClick={()=>setTab('sessions')}>Sesiones</button>
     <button className={tab==='integrations'?'active':''} onClick={()=>setTab('integrations')}>Por integración</button>
-    <button className={tab==='pending'?'active':''} onClick={()=>setTab('pending')}>Pendientes revisados</button>
+    <button className={tab==='pending'?'active':''} onClick={()=>setTab('pending')}>Pendientes y responsables</button>
    </nav>
    {tab==='baseline'&&<BaselineWorkspace from={rangeFrom} to={rangeTo} integrations={integrations} onRefresh={refresh}/>}
    {tab==='sessions'&&<div className="twocol">
@@ -190,8 +192,11 @@ function Portal(){
      {showHistory===i.id&&<div className="history"><p>Bitácora histórica del Excel oficial; solo se amplía con cambios nuevos aprobados:</p><pre>{i.situational_log||'Sin historial documentado'}</pre></div>}
     </div>)}</div>
    </section>}
-   {tab==='pending'&&<section className="panel"><h2>Pendientes por integración ({relevantPending.length})</h2>
-    <p className="muted">Pendientes derivados de hallazgos aprobados. La atención o cierre posterior debe acreditarse con nueva evidencia; esta vista no determina por sí sola si siguen abiertos.</p>
+   {tab==='pending'&&<section className="panel"><h2>Pendientes documentados por integración</h2>
+    <p className="muted">Se distinguen los últimos pendientes explícitos de la bitácora histórica y los nuevos hallazgos aprobados. Ningún pendiente debe considerarse todavía abierto o cerrado sin confirmar su situación en las sesiones posteriores.</p>
+    <h3>Últimos pendientes citados en la línea base ({historical.filter(f=>f.last_pending).length})</h3>
+    {historical.filter(f=>f.last_pending&&(scope==='Todas'||scope===f.integration)).map(f=><article key={'base'+f.id} className="finding"><div className="findinghead"><b>{f.source_numero} · {f.integration}</b><span>{f.status}</span></div><p><b>Pendiente histórico:</b> {f.last_pending}</p><p className="muted">Última mención localizada: {f.last_pending_date||'Sin fecha precisa'} · Responsable/dependencia: {f.dependency||'Por determinar'} · {f.source}</p></article>)}
+    <h3>Nuevos pendientes aprobados ({relevantPending.length})</h3>
     <div className="toolbar"><button className="light" onClick={()=>setTab('sessions')}>Ver sesiones</button><a href="/api/export" className="export">Descargar Excel</a></div>
     {relevantPending.map(f=><article key={f.id} className="finding"><b>{f.integration}</b><p><b>Sesión:</b> {f.session}</p><p><b>Pendiente:</b> {f.pending}</p><p><b>Responsable:</b> {f.owner_team||'Por determinar'}</p>{f.source_url&&<a href={f.source_url} target="_blank" rel="noreferrer">Ver evidencia</a>}</article>)}
    </section>}
