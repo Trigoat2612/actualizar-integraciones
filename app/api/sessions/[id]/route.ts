@@ -9,7 +9,7 @@ export async function GET(req:NextRequest,{params}:{params:Promise<{id:string}>}
  try{
   const [e,s,f]=await Promise.all([
    db().query('SELECT * FROM integraciones_laboral.calendar_events WHERE id=$1',[eventId]),
-   db().query('SELECT id,file_id,title,source_url,mime_type,google_modified_at,read_status,read_at,error_detail,processed_chunks,total_chunks FROM integraciones_laboral.calendar_event_sources WHERE event_id=$1 ORDER BY id',[eventId]),
+   db().query('SELECT s.id,s.file_id,s.title,s.source_url,s.mime_type,s.google_modified_at,s.read_status,s.read_at,s.error_detail,s.processed_chunks,s.total_chunks,r.summary_status AS chatgpt_summary_status FROM integraciones_laboral.calendar_event_sources s LEFT JOIN integraciones_laboral.chatgpt_source_reviews r ON r.file_id=s.file_id AND (r.source_modified_at IS NULL OR s.google_modified_at IS NULL OR r.source_modified_at>=s.google_modified_at) WHERE s.event_id=$1 ORDER BY s.id',[eventId]),
    db().query('SELECT f.id,f.happened_on,f.detail,f.agreement,f.pending,f.owner_team,f.proposed_status,f.evidence_excerpt,f.review_status,f.created_at,i.name AS integration,s.source_url FROM integraciones_laboral.integration_findings f JOIN integraciones_laboral.integrations i ON i.id=f.integration_id JOIN integraciones_laboral.calendar_event_sources s ON s.id=f.source_id WHERE f.event_id=$1 ORDER BY f.created_at DESC,f.id DESC',[eventId])
   ]);
   if(!e.rowCount)return NextResponse.json({error:'Sesión no encontrada'},{status:404});
