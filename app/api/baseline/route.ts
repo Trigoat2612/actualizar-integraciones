@@ -58,6 +58,9 @@ export async function POST(req:NextRequest){
    await client.query('SELECT pg_advisory_xact_lock(2026110901)');
    const old=(await client.query('SELECT id FROM '+schema+'.baseline_versions WHERE active=true ORDER BY id DESC LIMIT 1')).rows[0];
    const prior=(await client.query('SELECT id,source_numero,name,status,dependency,criticality,situational_log FROM '+schema+'.integrations FOR UPDATE')).rows;
+   const priorById=new Map(prior.map(r=>[Number(r.id),r]));
+   const previousOfficial=old?(await client.query('SELECT integration_id,situational_log FROM '+schema+'.baseline_integration_rows WHERE version_id=$1',[old.id])).rows:[];
+   const officialById=new Map(previousOfficial.map(r=>[Number(r.integration_id),String(r.situational_log||'')]));
    await client.query('UPDATE '+schema+'.baseline_versions SET active=false WHERE active=true');
    const version=(await client.query(
     'INSERT INTO '+schema+'.baseline_versions(source_filename,file_sha256,row_count,imported_by,active) VALUES($1,$2,35,$3,true) ON CONFLICT(file_sha256) DO UPDATE SET active=true RETURNING id',
@@ -72,8 +75,23 @@ export async function POST(req:NextRequest){
     await client.query(
      'INSERT INTO '+schema+'.baseline_integration_rows(version_id,integration_id,source_numero,source_name,observation,status,dependency,environment_enablement,situational_log,development_close,test_close,validation_close,documentation,criticality,considerations,excel_row_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)',
      [version.id,master.id,row.source_numero,row.source_name,row.observation,row.status,row.dependency,row.environment_enablement,row.situational_log,row.development_close,row.test_close,row.validation_close,row.documentation,row.criticality,row.considerations,row.excel_row_number]);
+    // Conserva los anexos aprobados en Neon después de la versión anterior del Excel.
+    let updatedLog=row.situational_log;
+    if(old){
+     const historic=officialById.get(Number(master.id));
+     const current=String(priorById.get(Number(master.id))?.situational_log||'');
+     if(historic===undefined)throw Error('La línea base anterior está incompleta; se canceló la actualización');
+     if(current!==historic){
+      if(!current.startsWith(historic+'\n'))
+       throw Error('La bitácora de '+row.source_name+' ha cambiado fuera de la secuencia auditada; requiere conciliación manual');
+      const additions=current.slice(historic.length+1);
+      if(additions.trim()&&!updatedLog.includes(additions.trim())){
+       updatedLog=updatedLog?updatedLog.replace(/\s+$/,'')+'\n'+additions:additions;
+      }
+     }
+    }
     await client.query('UPDATE '+schema+'.integrations SET status=$1,dependency=$2,criticality=$3,situational_log=$4,updated_at=NOW() WHERE id=$5',
-     [row.status,row.dependency,row.criticality,row.situational_log,master.id]);
+     [row.status,row.dependency,row.criticality,updatedLog,master.id]);
    }
    // La conciliación previa se conserva con su versión de origen; la nueva base requiere nuevo cotejo.
    await client.query('COMMIT');
