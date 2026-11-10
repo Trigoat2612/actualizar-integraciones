@@ -3,9 +3,9 @@ import {useEffect,useState} from 'react';
 import {signIn,signOut,useSession,SessionProvider} from 'next-auth/react';
 import BaselineWorkspace from './components/BaselineWorkspace';
 
-type Session={id:number;title:string;start_at:string;event_url:string;source_count:number;read_count:number;video_count:number;findings_count:number;integrations:string|null};
+type Session={id:number;title:string;start_at:string;event_url:string;source_count:number;read_count:number;chatgpt_summary_count:number;no_summary_count:number;video_count:number;findings_count:number;integrations:string|null};
 type Integration={id:number;source_numero:string;name:string;status:string;dependency:string;criticality:string;situational_log:string};
-type Source={id:number;title:string;source_url:string;mime_type:string;read_status:string;processed_chunks:number;total_chunks:number;error_detail:string};
+type Source={id:number;title:string;source_url:string;mime_type:string;read_status:string;processed_chunks:number;total_chunks:number;error_detail:string;chatgpt_summary_status:string|null};
 type Finding={id:number;integration:string;happened_on:string;detail:string;agreement:string;pending:string;owner_team:string;proposed_status:string;evidence_excerpt:string;review_status:string;source_url:string};
 type Detail={event:Session;sources:Source[];findings:Finding[]};
 type Health={ready:boolean;missing:string[];analysisReady:boolean;analysisConfigured:boolean};
@@ -96,7 +96,7 @@ function Portal(){
   }catch(e){setError(String(e instanceof Error?e.message:e))}
   finally{setBusy(false)}
  }
- const sessionCount=sessions.length,scanned=sessions.filter(s=>Number(s.read_count)>0).length,
+ const sessionCount=sessions.length,scanned=sessions.filter(s=>Number(s.chatgpt_summary_count)>0||Number(s.read_count)>0).length,
        sourceCount=sessions.reduce((n,s)=>n+Number(s.source_count),0),videos=sessions.reduce((n,s)=>n+Number(s.video_count),0);
  const relevantPending=pending.filter(f=>scope==='Todas'||f.integration===scope);
  return <main className="shell">
@@ -112,7 +112,7 @@ function Portal(){
   </section>:<>
    <section className="metrics">
     <div><span>Integraciones</span><strong>{integrations.length}</strong><small>Inventario Neon</small></div>
-    <div><span>Sesiones en rango</span><strong>{sessionCount}</strong><small>{scanned} con notas leídas</small></div>
+    <div><span>Sesiones en rango</span><strong>{sessionCount}</strong><small>{scanned} con resúmenes cotejados</small></div>
     <div><span>Fuentes identificadas</span><strong>{sourceCount}</strong><small>{videos} videos sin revisión automática</small></div>
     <div><span>Actualización</span><strong className="short">ChatGPT + Neon</strong><small>Sin consumo de OpenAI API en la web</small></div>
    </section>
@@ -152,7 +152,7 @@ function Portal(){
      {!sessions.length&&<p className="muted">No hay sesiones registradas para el periodo. Ejecuta la búsqueda para consultar Calendar.</p>}
      {sessions.map(s=><button key={s.id} className={'sessionitem '+(selected===s.id?'selected':'')} onClick={()=>openSession(s.id)}>
       <b>{s.title}</b><small>{lima(s.start_at)}</small>
-      <span>{s.read_count}/{s.source_count} fuentes leídas · {s.findings_count} hallazgos</span>
+      <span>{s.chatgpt_summary_count||0} resumen(es) cotejado(s) · {s.no_summary_count||0} sin resumen · {s.source_count} adjuntos</span>
       {s.video_count>0&&<em>{s.video_count} video(s) pendiente(s)</em>}
      </button>)}
     </section>
@@ -164,7 +164,7 @@ function Portal(){
       <h3>Fuentes</h3>
       {!detail.sources.length&&<p className="muted">No hay documentos asociados a esta sesión.</p>}
       <div className="sources">{detail.sources.map(s=><div key={s.id} className="source">
-       <div><b>{s.title}</b><small>{s.read_status} · {s.processed_chunks}/{s.total_chunks} fragmentos</small></div>
+       <div><b>{s.title}</b><small>{s.chatgpt_summary_status||s.read_status}{s.chatgpt_summary_status?' (ChatGPT, revisión de resumen)':' · '+s.processed_chunks+'/'+s.total_chunks+' fragmentos'}</small></div>
        {s.source_url&&<a href={s.source_url} target="_blank" rel="noreferrer">Fuente</a>}
        {s.error_detail&&<p className="muted">{s.error_detail}</p>}
       </div>)}</div>
