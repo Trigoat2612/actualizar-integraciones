@@ -66,3 +66,21 @@ Resultado esperado: test=SINTÉTICA, sentRealData=false, persisted=false, checks
 Seguridad: store=false no equivale a cero retención. Antes de enviar transcripciones reales se requiere autorización institucional sobre confidencialidad judicial, retención, proveedor, acceso, minimización o anonimización, y responsabilidades sobre datos. Las grabaciones sin transcripción no se consideran revisadas.
 
 Cuando exista autorización, comenzar con una transcripción única, examinada previamente, preferiblemente anonimizada. Los hallazgos deben quedar propuestos hasta aprobación manual; repetir fecha no debe duplicar registros.
+
+## Flujo principal desde el 10/11/2026: Excel oficial + ChatGPT + Neon
+
+El motor OpenAI API es opcional y **NO** forma parte del flujo principal. Mantener AI_PROCESSING_APPROVED=false. No es necesario contratar OpenAI API para consultar Calendar y Neon desde esta web.
+
+**Línea base oficial:** el archivo Lista_Integraciones_base.xlsx aportado en la conversación (35 filas, hoja Seguimiento, 13 columnas). Su huella SHA-256 está fijada en lib/baseline.ts para impedir sustituirlo accidentalmente por otro archivo. La primera importación se realiza en el portal con dos pasos: Comparar sin aplicar y Confirmar importación con respaldo. No se publica el contenido del Excel en GitHub. La tabla baseline_integration_rows conserva cada campo original; integrations conserva el estado y la bitácora textual de referencia.
+
+**Cotejo:** en la pestaña Línea base y cotejo se comparan las sesiones detectadas con las fechas citadas en la bitácora. Las coincidencias por fecha son candidatas, no pruebas de cobertura. Los estados de sesión son Por cotejar, Cubierta en base, Omisión detectada y Fuera de alcance; cada decisión requiere un sustento escrito y puede asociarse a varias integraciones.
+
+**Propuestas desde ChatGPT:** tras revisar una fecha mediante las conexiones ChatGPT a Calendar, Drive y Neon, el análisis puede insertar hallazgos NUEVOS en integraciones_laboral.chatgpt_review_proposals, con fuente, fecha, evidencia, responsable y huella única. La web muestra estas propuestas para aprobación o rechazo. Solo una aprobación explícita agrega texto a integrations.situational_log; la acción registra auditoría. La reimportación del Excel preserva sufijos aprobados de la versión anterior, y rechaza divergencias no conciliadas.
+
+**Pendientes:** la pestaña Pendientes y responsables distingue últimos pendientes explícitos en la bitácora histórica de nuevas observaciones aprobadas. Que un pendiente figure en una bitácora no acredita que siga abierto; su cierre se comprueba por sesión.
+
+**Pilotaje 04/11/2026:** se identificaron cinco eventos de Calendar y diez adjuntos (cinco notas de Gemini y cinco grabaciones) y se registraron metadatos en Neon. Esto NO equivale a leer/transcribir videos, verificar las cinco notas completas, ni completar el cotejo.
+
+**Base de datos:** ejecutar db/migration_baseline.sql solo en una instalación nueva. La migración aditiva ya fue aplicada al proyecto Neon vinculado.
+
+**Seguridad:** la web exige Google OAuth + ALLOWED_EMAIL, y ninguna clave o transcripción se añade al repositorio GitHub. La consulta desde ChatGPT y el almacenamiento Neon deben cumplir las políticas institucionales del Poder Judicial; no enviar contenidos sensibles a otros proveedores sin autorización.
