@@ -7,7 +7,7 @@ type Integration={id:number;source_numero:string;name:string;status:string;depen
 type Source={id:number;title:string;source_url:string;mime_type:string;read_status:string;processed_chunks:number;total_chunks:number;error_detail:string};
 type Finding={id:number;integration:string;happened_on:string;detail:string;agreement:string;pending:string;owner_team:string;proposed_status:string;evidence_excerpt:string;review_status:string;source_url:string};
 type Detail={event:Session;sources:Source[];findings:Finding[]};
-type Health={ready:boolean;missing:string[];analysisReady:boolean};
+type Health={ready:boolean;missing:string[];analysisReady:boolean;analysisConfigured:boolean};
 const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Lima'});
 const asDay=(s:string)=>s?.slice(0,10)||'';
 const lima=(s:string)=>new Intl.DateTimeFormat('es-PE',{timeZone:'America/Lima',dateStyle:'medium',timeStyle:'short'}).format(new Date(s));
@@ -25,6 +25,7 @@ function Portal(){
  const [detail,setDetail]=useState<Detail|null>(null),[selected,setSelected]=useState<number|null>(null);
  const [loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('');
  const [batchId,setBatchId]=useState<number|null>(null),[showHistory,setShowHistory]=useState<number|null>(null);
+ const [syntheticResult,setSyntheticResult]=useState<{model:string;validFindings:number;checks:{expectedIntegration:boolean;evidenceGrounded:boolean};findings:Array<{integration:string;happened:string;pending:string;responsible:string;evidence:string}>}|null>(null);
  const rangeFrom=single?day:from,rangeTo=single?day:to;
  useEffect(()=>{request('/api/health').then(setHealth).catch(()=>{});},[]);
  useEffect(()=>{if(session)refresh();},[session]);
@@ -36,6 +37,15 @@ function Portal(){
    ]);
    setSessions(a.sessions||[]);setIntegrations(b.integrations||[]);setPending(c.pending||[]);
   }catch(e){setError(String(e instanceof Error?e.message:e));}
+ }
+ async function syntheticTest(){
+  setBusy(true);setError('');setMessage('');setSyntheticResult(null);
+  try{
+   const result=await request('/api/analysis/test',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+   setSyntheticResult(result);
+   setMessage('Prueba ficticia ejecutada. No se ha enviado una transcripción real ni se ha escrito en Neon.');
+  }catch(e){setError(String(e instanceof Error?e.message:e))}
+  finally{setBusy(false)}
  }
  async function discover(){
   if(!rangeFrom||!rangeTo||rangeFrom>rangeTo){setError('Selecciona un periodo válido');return;}
@@ -122,6 +132,14 @@ function Portal(){
      <a href="/api/export" className="export">Exportar a Excel</a>
     </div>
     <p className="helper">Buscar sesiones registra los eventos y documentos, pero no presupone que fueron analizados. El procesamiento de transcripciones se inicia por sesión.</p>
+    <div className="notice"><b>Comprobar OpenAI sin enviar información judicial:</b> la prueba utiliza exclusivamente un acta ficticia incorporada al código, no guarda hallazgos ni cambia estados de las integraciones.</div>
+    <div className="toolbar"><button className="light" onClick={syntheticTest} disabled={busy||!health?.analysisConfigured}>{busy?'Probando OpenAI...':'Ejecutar prueba sintética de OpenAI'}</button>
+      {!health?.analysisConfigured&&<span className="muted">Configura ANALYSIS_API_URL, ANALYSIS_API_KEY y ANALYSIS_MODEL en Vercel.</span>}
+    </div>
+    {syntheticResult&&<div className="notice"><b>Prueba OpenAI: {syntheticResult.validFindings} hallazgos ficticios con evidencia comprobable · {syntheticResult.model}</b>
+       {syntheticResult.findings.map((f,i)=><p key={i}><b>{f.integration}:</b> {f.happened} <b>Pendiente:</b> {f.pending} <b>Responsable:</b> {f.responsible}</p>)}
+       <p>Esta comprobación no autoriza el envío de transcripciones de Calendar.</p>
+    </div>}
    </section>
    {error&&<div className="warn">{error}</div>}
    {message&&<div className="success">{message}</div>}
