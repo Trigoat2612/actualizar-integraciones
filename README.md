@@ -48,3 +48,21 @@ Visitar /api/health. Devuelve los nombres de variables pendientes y analysisRead
 La consulta de Calendar se realiza en una solicitud, útil para rangos de días o semanas. Para una revisión histórica masiva se requiere un trabajador con colas y reintentos duraderos. El modelo procesa transcripciones por secciones de hasta 18.000 caracteres; puede requerirse volver a pulsar analizar hasta completar la fuente. Los documentos con errores o videos sin transcribir nunca se consideran revisados por el mero descubrimiento. La fecha de un evento y el contenido no reemplazan la validación funcional por GSJ. Las acciones pendientes aprobadas necesitan una conciliación posterior para establecer su cierre real. La conexión y despliegue de producción solo se consideran operativos tras confirmar credenciales, build y pruebas.
 
 No ejecutar tareas automáticas programadas.
+
+## Prueba controlada de OpenAI API
+
+El motor utiliza exclusivamente el endpoint HTTPS de OpenAI Chat Completions, con modelo gpt-4.1-mini o gpt-4.1, store=false y respuesta JSON.
+
+Variables en Vercel (Production):
+- ANALYSIS_API_URL = https://api.openai.com/v1/chat/completions
+- ANALYSIS_API_KEY = clave secreta del proyecto OpenAI, nunca se guarda en GitHub
+- ANALYSIS_MODEL = gpt-4.1-mini
+- AI_PROCESSING_APPROVED = false inicialmente. Solo cambiar a true con autorización institucional expresa.
+
+La prueba sintética está disponible tras iniciar sesión con Google, en el botón «Ejecutar prueba sintética de OpenAI». Utiliza un acta ficticia incluida en el código; no consulta Calendar ni escribe en Neon. La ruta POST /api/analysis/test no acepta texto arbitrario del usuario.
+
+Resultado esperado: test=SINTÉTICA, sentRealData=false, persisted=false, checks.expectedIntegration=true y al menos una evidencia literal verificable. HTTP 401/403 indica clave o permiso insuficiente; HTTP 429, cuota o límite.
+
+Seguridad: store=false no equivale a cero retención. Antes de enviar transcripciones reales se requiere autorización institucional sobre confidencialidad judicial, retención, proveedor, acceso, minimización o anonimización, y responsabilidades sobre datos. Las grabaciones sin transcripción no se consideran revisadas.
+
+Cuando exista autorización, comenzar con una transcripción única, examinada previamente, preferiblemente anonimizada. Los hallazgos deben quedar propuestos hasta aprobación manual; repetir fecha no debe duplicar registros.
