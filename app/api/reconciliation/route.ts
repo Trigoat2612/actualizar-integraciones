@@ -35,7 +35,7 @@ export async function POST(req:NextRequest){
  try{
   const body=await req.json();
   const eventId=Number(body.eventId),status=String(body.status||''),notes=String(body.notes||'').trim(),
-    integrationIds=Array.isArray(body.integrationIds)?[...new Set(body.integrationIds.map(Number))]:[];
+    integrationIds:number[]=Array.isArray(body.integrationIds)?Array.from(new Set<number>(body.integrationIds.map((v:unknown)=>Number(v)))):[];
   if(!Number.isSafeInteger(eventId)||eventId<1||!statuses.includes(status))
    return NextResponse.json({error:'Evento o estado inválido'},{status:400});
   if(status!=='Por cotejar'&&notes.length<15)return NextResponse.json({error:'Indica el fundamento del cotejo (mínimo 15 caracteres)'},{status:400});
