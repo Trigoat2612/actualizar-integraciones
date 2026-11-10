@@ -31,7 +31,21 @@ export async function modelAnalyze(fragment:string,names:string[],title:string,d
   ]}),cache:'no-store',signal:AbortSignal.timeout(80000)});
  const raw=await response.json();if(!response.ok){
   if(response.status===401||response.status===403)throw Error('OpenAI rechazó las credenciales o permisos de la clave (HTTP '+response.status+')');
-  if(response.status===429)throw Error('Límite de uso o cuota de OpenAI alcanzada (HTTP 429)');
+  if(response.status===429){
+   const detail=raw?.error||{};
+   const code=String(detail.code||detail.type||'').toLowerCase();
+   if(['credit_balance_exhausted','insufficient_quota'].includes(code))
+    throw Error('OpenAI 429: créditos o cuota de API insuficientes. Revisa Billing en platform.openai.com.');
+   if(code==='project_spend_limit_exceeded')
+    throw Error('OpenAI 429: el proyecto alcanzó su límite de gasto. Revisa Project > Limits.');
+   if(code==='organization_spend_limit_exceeded')
+    throw Error('OpenAI 429: la organización alcanzó su límite de gasto. Revisa Organization > Limits.');
+   if(code==='organization_usage_limit_exceeded')
+    throw Error('OpenAI 429: la organización alcanzó su límite de uso aprobado. Revisa Organization > Limits.');
+   if(code==='rate_limit_exceeded'||/rate.limit|requests per min|tokens per min/i.test(String(detail.message||'')))
+    throw Error('OpenAI 429: demasiadas solicitudes o tokens por minuto. Reduce la frecuencia y revisa Limits.');
+   throw Error('OpenAI 429: límite de API sin causa identificada. Comprueba Billing y Limits antes de repetir.');
+  }
   if(response.status===400)throw Error('Solicitud incompatible con la configuración del modelo (HTTP 400)');
   throw Error('Error del servicio OpenAI (HTTP '+response.status+')');
  }
