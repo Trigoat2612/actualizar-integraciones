@@ -24,7 +24,7 @@ export async function readBaseline(buffer:Buffer){
  const hash=createHash('sha256').update(buffer).digest('hex');
  if(hash!==BASELINE_SHA256)throw Error('Este archivo no coincide con Lista_Integraciones_base.xlsx proporcionado como línea base. Usa exactamente el archivo original.');
  const wb=new ExcelJS.Workbook();
- await wb.xlsx.load(buffer as unknown as Buffer<ArrayBuffer>);
+ await wb.xlsx.load(buffer as never);
  const ws=wb.getWorksheet('Seguimiento');
  if(!ws)throw Error('Falta la hoja Seguimiento');
  const head=['N°','Sistema a Integrar','Observación','Estado','Dependencia','Habilitacion de ambiente','Estado Situacional','F. Cierre Desarrollo','F.Cierre Pruebas - Softpla/GTI','F.Validacion GSJ','Documentación','Criticidad','Consideraciones'];
