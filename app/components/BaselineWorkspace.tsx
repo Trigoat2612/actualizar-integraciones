@@ -16,7 +16,7 @@ type ReconcileSession={
 type ReconcileResponse={baselineReady:boolean;sessions:ReconcileSession[];total?:number;warning?:string;message?:string};
 type Proposal={
  id:number;integration_id:number;integration:string;event_id:number|null;observed_on:string;
- source_name:string;source_url:string;detail:string;agreement:string;pending:string;
+ source_name:string;source_url:string;source_kind:string;detail:string;agreement:string;pending:string;
  responsible:string;evidence_quote:string;proposed_status:string;review_status:string;
 };
 const STATUSES=['Por cotejar','Cubierta en base','Omisión detectada','Fuera de alcance'];
