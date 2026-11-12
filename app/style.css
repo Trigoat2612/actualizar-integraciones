@@ -76,3 +76,16 @@
 .proposal-count{background:#e9f2f9;border-radius:99px;padding:7px 11px;font-size:12px;color:#37658a;white-space:nowrap}
 @media(max-width:850px){.coverage-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.decision-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.coverage-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.coverage-session-head{padding:13px;align-items:flex-start}.coverage-session-side{flex-direction:column;align-items:flex-end;gap:6px}.coverage-detail{padding:6px 12px 16px}.coverage-step{gap:9px}.coverage-search input{min-width:100%}.coverage-search>div button{flex:1}.base-actions{align-items:flex-start;flex-direction:column;gap:5px}.pagination{gap:8px}.pagination button{padding:9px 11px}.coverage-summary strong{font-size:23px}}
+
+/* Propuestas asociadas directamente a una sesión y cierre documental verificable */
+.session-proposals{margin-top:18px;padding:16px;border:1px solid #dbe7f2;border-radius:10px;background:#f8fbfe}
+.session-proposals h3{font-size:14px;margin:0 0 12px;color:#244763}
+.session-proposals>p{font-size:12px;color:#637b8e}
+.inline-proposal{padding:12px 0;border-top:1px solid #e0eaf3}
+.inline-proposal summary{list-style-position:inside;cursor:pointer;font-size:13px;color:#264e6e;line-height:1.6}
+.inline-proposal summary>span{background:#e9f2fa;padding:4px 8px;border-radius:99px;font-size:11px;margin-left:6px}
+.inline-proposal>div{padding:10px 0 0 15px}
+.inline-proposal p{font-size:12px;color:#4f6e84;line-height:1.55}
+.inline-proposal a{font-size:12px}
+.inline-proposal .toolbar{margin-top:13px;display:flex;flex-wrap:wrap;gap:10px}
+@media(max-width:600px){.session-proposals{padding:12px}.inline-proposal>div{padding-left:2px}.inline-proposal .toolbar button{width:100%}}
