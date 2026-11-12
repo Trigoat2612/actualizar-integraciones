@@ -7,7 +7,7 @@ type Preview={preview:true;rows:number;hash:string;differences:Difference[];canA
 type Version={id:number;source_filename:string;file_sha256:string;row_count:number;imported_at:string;active:boolean};
 type BaselineResponse={versions:Version[];baselineRows:number;coverage:Array<{status:string;total:number}>};
 type DocumentRef={id:number;title:string;url:string;mime:string};
-type ReconcileSession={id:number;title:string;start_at:string;event_url:string;event_status:string;source_count:number;video_count:number;coverage_status:string;notes?:string;checked_by?:string;integration_ids?:number[];requiresRecheck:boolean;documents:DocumentRef[]};
+type ReconcileSession={id:number;title:string;start_at:string;event_url:string;event_status:string;source_count:number;video_count:number;coverage_status:string;notes?:string;checked_by?:string;integration_ids?:number[];requiresRecheck:boolean;documents:DocumentRef[];proposal_total:number;proposal_pending:number;proposal_approved:number;proposal_rejected:number};
 type Counts={total:number;'Por cotejar':number;'Cubierta en base':number;'Omisión detectada':number;'Fuera de alcance':number};
 type ReconcileResponse={baselineReady:boolean;sessions:ReconcileSession[];counts:Counts;total:number;page:number;pageSize:number;warning?:string;message?:string};
 type Proposal={id:number;integration_id:number;integration:string;event_id:number|null;observed_on:string;source_name:string;source_url:string;source_kind:string;detail:string;agreement:string;pending:string;responsible:string;evidence_quote:string;proposed_status:string;review_status:string};
@@ -80,9 +80,14 @@ export default function BaselineWorkspace({from,to,integrations,onRefresh}:{from
   if(v.status==='Por cotejar'){setError('Selecciona un resultado antes de guardar.');return}
   if(v.notes.trim().length<15){setError('Escribe un sustento de al menos 15 caracteres.');return}
   if(v.status!=='Fuera de alcance'&&v.selected.length===0){setError('Selecciona la integración realmente tratada en esta sesión.');return}
+  const closingOmission=v.status==='Cubierta en base'&&s.coverage_status==='Omisión detectada';
+  if(closingOmission){
+   if(s.proposal_total===0||s.proposal_pending>0){setError('Esta reunión todavía tiene omisiones sin propuesta o propuestas sin resolver.');return}
+   if(!window.confirm('¿Confirmas que todas las omisiones de esta reunión ya quedaron incorporadas o justificadamente descartadas? Esto cierra solo el cotejo documental, NO la incidencia técnica.'))return;
+  }
   setBusy(true);setError('');setMessage('');
   try{
-   await api('/api/reconciliation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventId:s.id,status:v.status,notes:v.notes,integrationIds:v.selected})});
+   await api('/api/reconciliation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventId:s.id,status:v.status,notes:v.notes,integrationIds:v.selected,coverageConfirmed:closingOmission})});
    setMessage('Cotejo registrado para «'+s.title+'».');
    setExpanded(null);setEdit(prev=>{const next={...prev};delete next[s.id];return next});
    await loadCoverage();
@@ -153,16 +158,19 @@ export default function BaselineWorkspace({from,to,integrations,onRefresh}:{from
     </div>
    </form>
    <div className="coverage-guide">
-    <strong>¿Qué debo hacer?</strong> Abre una reunión, consulta sus notas de Gemini, confirma qué integraciones se trataron y decide si la información ya está en la bitácora o si falta incorporarla. No necesitas analizar nuevamente una sesión que ya está documentada.
+    <strong>¿Qué debo hacer?</strong> Abre una reunión y revisa las propuestas vinculadas a sus notas de Gemini. Aprueba o rechaza los hallazgos. Cuando no quede ninguna propuesta pendiente y hayas comprobado la cobertura documental, puedes marcar «Ya documentada». Esto no cierra las incidencias técnicas.
    </div>
    {!active&&<p className="notice">Necesitas importar la línea base para habilitar la conciliación.</p>}
    {active&&coverage?.sessions.length===0&&<div className="empty-state">No hay sesiones para estos filtros. Puedes cambiar el periodo o utilizar «Buscar sesiones y registrar avance» para consultar Calendar.</div>}
    <div className="session-stack">
     {active&&coverage?.sessions.map(s=>{
-     const editing=expanded===s.id,v=editor(s);
+     const editing=expanded===s.id,v=editor(s),linked=proposals.filter(p=>Number(p.event_id)===Number(s.id));
+     const needsClosure=v.status==='Cubierta en base'&&s.coverage_status==='Omisión detectada';
+     const canClose=!needsClosure||(s.proposal_total>0&&s.proposal_pending===0);
      return <article className={'coverage-session'+(editing?' opened':'')} key={s.id}>
       <button className="coverage-session-head" onClick={()=>open(s)} aria-expanded={editing}>
-       <span className="coverage-session-main"><strong>{s.title}</strong><small>{fmt(s.start_at)} · {s.source_count} adjuntos ({s.video_count} grabaciones)</small></span>
+       <span className="coverage-session-main"><strong>{s.title}</strong><small>{fmt(s.start_at)} · {s.source_count} adjuntos ({s.video_count} grabaciones)</small>
+        {s.proposal_total>0&&<small><b>{s.proposal_total} propuesta(s) asociada(s)</b> · {s.proposal_pending} por decidir · {s.proposal_approved} aprobada(s)</small>}</span>
        <span className="coverage-session-side"><span className={'state-tag '+(s.coverage_status==='Por cotejar'?'state-pending':'')}>{s.requiresRecheck?'Revisar nueva base':s.coverage_status==='Por cotejar'?'Por revisar':s.coverage_status}</span><span className="chevron">{editing?'−':'+'}</span></span>
       </button>
       {editing&&<div className="coverage-detail">
@@ -172,6 +180,22 @@ export default function BaselineWorkspace({from,to,integrations,onRefresh}:{from
         <div className="doc-links">
          <a href={s.event_url} target="_blank" rel="noreferrer">Abrir evento de Calendar</a>
          {s.documents?.map(d=><a key={d.id} href={d.url} target="_blank" rel="noreferrer">{d.title||'Abrir notas'}</a>)}
+        </div>
+        <div className="session-proposals">
+          <h3>Propuestas asociadas a esta sesión ({s.proposal_total})</h3>
+          {linked.length===0?<p>Esta sesión no tiene propuestas asociadas. Si fue clasificada con omisiones, requiere análisis adicional antes de cerrarla.</p>:
+            linked.map(p=><details key={p.id} className="inline-proposal">
+              <summary><b>{p.integration}</b> · <span>{p.review_status}</span></summary>
+              <div><p><strong>Hecho:</strong> {p.detail}</p>
+              {p.agreement&&<p><strong>Acuerdo:</strong> {p.agreement}</p>}
+              {p.pending&&<p><strong>Pendiente:</strong> {p.responsible}: {p.pending}</p>}
+              {p.evidence_quote&&<p><strong>Evidencia:</strong> «{p.evidence_quote}»</p>}
+              {p.source_url&&<a href={p.source_url} target="_blank" rel="noreferrer">Consultar nota original</a>}
+              {p.review_status==='Propuesto'&&<div className="toolbar">
+               <button className="ui-primary" disabled={busy} onClick={()=>decide(p,'Aprobado')}>Aprobar propuesta</button>
+               <button className="ui-secondary" disabled={busy} onClick={()=>decide(p,'Rechazado')}>Rechazar</button>
+              </div>}</div>
+            </details>)}
         </div>
        </div></div>
        <div className="coverage-step"><span className="step-no">2</span><div className="coverage-step-content">
@@ -201,8 +225,11 @@ export default function BaselineWorkspace({from,to,integrations,onRefresh}:{from
          <textarea rows={3} value={v.notes} onChange={e=>setField(s,{notes:e.target.value})}
           placeholder={v.status==='Cubierta en base'?'Ej.: La sesión está cubierta por el registro del 04/11 de SERNOT, que documenta las incidencias y acuerdos tratados.':v.status==='Omisión detectada'?'Ej.: Falta incorporar la incidencia del servicio, el acuerdo y el responsable consignados en las notas.':'Indica el registro, evidencia o motivo por el que corresponde esta clasificación.'}/>
         </label>
+        {needsClosure&&<div className={canClose?'success':'notice'}>
+         {canClose?'Las propuestas fueron decididas. Verifica la bitácora y confirma explícitamente la cobertura documental para cerrar el cotejo.':'No puedes marcar «Ya documentada» mientras haya propuestas sin aprobar o rechazar. Revisa primero las '+s.proposal_pending+' propuestas pendientes.'}
+        </div>}
         <div className="toolbar">
-         <button className="ui-primary" disabled={busy||v.status==='Por cotejar'||v.notes.trim().length<15||(v.status!=='Fuera de alcance'&&v.selected.length===0)} onClick={()=>save(s)}>Guardar resultado</button>
+         <button className="ui-primary" disabled={busy||!canClose||v.status==='Por cotejar'||v.notes.trim().length<15||(v.status!=='Fuera de alcance'&&v.selected.length===0)} onClick={()=>save(s)}>{needsClosure?'Confirmar cierre documental':'Guardar resultado'}</button>
          <button className="ui-secondary" onClick={()=>setExpanded(null)}>Cerrar sin guardar</button>
         </div>
         <p className="helper">Este paso solo registra la cobertura de la reunión. No cambia el estado oficial de ninguna integración ni agrega hechos automáticamente.</p>
