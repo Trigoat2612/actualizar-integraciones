@@ -29,6 +29,10 @@ export async function GET(req:NextRequest){
    pool.query(`SELECT e.id,e.title,e.start_at,e.event_url,e.event_status,
      ${effective} AS coverage_status,r.notes,r.checked_at,r.checked_by,
      r.baseline_version_id,r.integration_ids,
+     (SELECT COUNT(*)::int FROM ${schema}.chatgpt_review_proposals p WHERE p.event_id=e.id) AS proposal_total,
+     (SELECT COUNT(*)::int FROM ${schema}.chatgpt_review_proposals p WHERE p.event_id=e.id AND p.review_status IN ('Propuesto','Desactualizado')) AS proposal_pending,
+     (SELECT COUNT(*)::int FROM ${schema}.chatgpt_review_proposals p WHERE p.event_id=e.id AND p.review_status='Aprobado') AS proposal_approved,
+     (SELECT COUNT(*)::int FROM ${schema}.chatgpt_review_proposals p WHERE p.event_id=e.id AND p.review_status='Rechazado') AS proposal_rejected,
      (SELECT COUNT(*)::int FROM ${schema}.calendar_event_sources s WHERE s.event_id=e.id) AS source_count,
      (SELECT COUNT(*)::int FROM ${schema}.calendar_event_sources s WHERE s.event_id=e.id AND s.mime_type LIKE 'video/%') AS video_count,
      COALESCE((SELECT json_agg(json_build_object('id',s.id,'title',s.title,'url',s.source_url,'mime',s.mime_type) ORDER BY s.id)
@@ -67,8 +71,27 @@ export async function POST(req:NextRequest){
   ]);
   if(!event.rowCount)return NextResponse.json({error:'Sesión no encontrada'},{status:404});
   if(match.rowCount!==integrationIds.length)return NextResponse.json({error:'Una integración no existe en la línea base'},{status:400});
-  const result=await pool.query('INSERT INTO '+schema+'.calendar_reconciliations(event_id,baseline_version_id,status,integration_ids,notes,checked_by) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(event_id) DO UPDATE SET baseline_version_id=EXCLUDED.baseline_version_id,status=EXCLUDED.status,integration_ids=EXCLUDED.integration_ids,notes=EXCLUDED.notes,checked_by=EXCLUDED.checked_by,checked_at=NOW() RETURNING event_id,status,checked_at',
-   [eventId,v.id,status,integrationIds,notes,user.email]);
-  return NextResponse.json({saved:true,reconciliation:result.rows[0]},{headers:{'Cache-Control':'no-store'}});
+  // Una omisión documentada no se cierra automáticamente por aprobar hallazgos.
+  // El cotejo completo requiere resolución de todas las propuestas y confirmación humana.
+  const client=await pool.connect();
+  try{
+   await client.query('BEGIN');
+   const existing=await client.query('SELECT status FROM '+schema+'.calendar_reconciliations WHERE event_id=$1 FOR UPDATE',[eventId]);
+   const previous=String(existing.rows[0]?.status||'Por cotejar');
+   if(status==='Cubierta en base'&&previous==='Omisión detectada'){
+    const p=await client.query("SELECT COUNT(*)::int AS total,COUNT(*) FILTER(WHERE review_status IN ('Propuesto','Desactualizado'))::int AS unresolved FROM "+schema+".chatgpt_review_proposals WHERE event_id=$1",[eventId]);
+    const {total,unresolved}=p.rows[0];
+    if(Number(total)===0||Number(unresolved)>0||body.coverageConfirmed!==true){
+     await client.query('ROLLBACK');
+     return NextResponse.json({error:Number(total)===0?'No hay propuestas vinculadas; coteja las omisiones antes de cerrar esta sesión':Number(unresolved)>0?'Todavía existen propuestas pendientes de aprobación o rechazo':'Confirma expresamente que ya se resolvieron todas las omisiones documentales'}, {status:409});
+    }
+   }
+   const result=await client.query('INSERT INTO '+schema+'.calendar_reconciliations(event_id,baseline_version_id,status,integration_ids,notes,checked_by) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(event_id) DO UPDATE SET baseline_version_id=EXCLUDED.baseline_version_id,status=EXCLUDED.status,integration_ids=EXCLUDED.integration_ids,notes=EXCLUDED.notes,checked_by=EXCLUDED.checked_by,checked_at=NOW() RETURNING event_id,status,checked_at',
+    [eventId,v.id,status,integrationIds,notes,user.email]);
+   await client.query('INSERT INTO '+schema+'.calendar_reconciliation_audit(event_id,baseline_version_id,previous_status,new_status,notes,actor_email) VALUES($1,$2,$3,$4,$5,$6)',
+    [eventId,v.id,previous,status,notes,user.email]);
+   await client.query('COMMIT');
+   return NextResponse.json({saved:true,reconciliation:result.rows[0]},{headers:{'Cache-Control':'no-store'}});
+  }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
  }catch(e){return NextResponse.json({error:cleanError(e)},{status:500})}
 }
