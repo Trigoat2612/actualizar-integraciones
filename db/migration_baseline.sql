@@ -86,4 +86,16 @@ CREATE TABLE IF NOT EXISTS integraciones_laboral.chatgpt_proposal_audit (
  acted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
  UNIQUE(proposal_id,decision)
 );
+CREATE TABLE IF NOT EXISTS integraciones_laboral.calendar_reconciliation_audit (
+ id BIGSERIAL PRIMARY KEY,
+ event_id BIGINT NOT NULL REFERENCES integraciones_laboral.calendar_events(id),
+ baseline_version_id BIGINT NOT NULL REFERENCES integraciones_laboral.baseline_versions(id),
+ previous_status TEXT NOT NULL,
+ new_status TEXT NOT NULL,
+ notes TEXT NOT NULL,
+ actor_email TEXT NOT NULL,
+ changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS calendar_reconciliation_audit_event_idx
+ ON integraciones_laboral.calendar_reconciliation_audit(event_id,changed_at DESC);
 COMMIT;
