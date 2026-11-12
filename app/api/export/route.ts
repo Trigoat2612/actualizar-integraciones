@@ -19,7 +19,7 @@ export async function GET(req:NextRequest){
  if(!await authorized(req))return NextResponse.json({error:'No autorizado'},{status:401});
  try{
   const pool=db();
-  const [cat,events,sources,findings,audit,coverage,proposals,proposalAudit]=await Promise.all([
+  const [cat,events,sources,findings,audit,coverage,proposals,proposalAudit,reconciliationAudit]=await Promise.all([
    pool.query("SELECT i.source_numero,i.name,i.status,i.dependency,i.criticality,i.situational_log,COALESCE(r.observation,'') AS observation,COALESCE(r.environment_enablement,'') AS environment_enablement,COALESCE(r.development_close,'') AS development_close,COALESCE(r.test_close,'') AS test_close,COALESCE(r.validation_close,'') AS validation_close,COALESCE(r.documentation,'') AS documentation,COALESCE(r.considerations,'') AS considerations FROM integraciones_laboral.integrations i LEFT JOIN integraciones_laboral.baseline_integration_rows r ON r.integration_id=i.id AND r.version_id=(SELECT id FROM integraciones_laboral.baseline_versions WHERE active=true LIMIT 1) ORDER BY i.numero"),
    pool.query('SELECT id,title,start_at,event_url,event_status,last_seen_at FROM integraciones_laboral.calendar_events ORDER BY start_at DESC LIMIT 5000'),
    pool.query('SELECT e.title AS session,e.start_at,s.title,s.source_url,s.mime_type,s.read_status,s.processed_chunks,s.total_chunks,s.error_detail FROM integraciones_laboral.calendar_event_sources s JOIN integraciones_laboral.calendar_events e ON e.id=s.event_id ORDER BY e.start_at DESC LIMIT 15000'),
@@ -27,7 +27,8 @@ export async function GET(req:NextRequest){
    pool.query('SELECT a.finding_id,a.decision,a.reason,a.actor_email,a.created_at FROM integraciones_laboral.approval_audit a ORDER BY a.id DESC LIMIT 10000'),
    pool.query("SELECT e.title AS session,e.start_at,e.event_url,r.status,r.notes,r.checked_by,r.checked_at,STRING_AGG(DISTINCT i.name,', ') AS integrations FROM integraciones_laboral.calendar_events e LEFT JOIN integraciones_laboral.calendar_reconciliations r ON r.event_id=e.id LEFT JOIN integraciones_laboral.integrations i ON i.id=ANY(COALESCE(r.integration_ids,ARRAY[]::bigint[])) GROUP BY e.id,r.status,r.notes,r.checked_by,r.checked_at ORDER BY e.start_at DESC LIMIT 5000"),
    pool.query('SELECT i.name AS integration,p.observed_on,p.source_name,p.source_url,p.detail,p.agreement,p.pending,p.responsible,p.evidence_quote,p.proposed_status,p.review_status,p.created_at FROM integraciones_laboral.chatgpt_review_proposals p JOIN integraciones_laboral.integrations i ON i.id=p.integration_id ORDER BY p.observed_on DESC,p.id DESC LIMIT 15000'),
-   pool.query('SELECT a.proposal_id,a.decision,a.reason,a.actor_email,a.acted_at FROM integraciones_laboral.chatgpt_proposal_audit a ORDER BY a.id DESC LIMIT 10000')
+   pool.query('SELECT a.proposal_id,a.decision,a.reason,a.actor_email,a.acted_at FROM integraciones_laboral.chatgpt_proposal_audit a ORDER BY a.id DESC LIMIT 10000'),
+   pool.query('SELECT e.title AS session,e.start_at,a.previous_status,a.new_status,a.notes,a.actor_email,a.changed_at FROM integraciones_laboral.calendar_reconciliation_audit a JOIN integraciones_laboral.calendar_events e ON e.id=a.event_id ORDER BY a.changed_at DESC,a.id DESC LIMIT 10000')
   ]);
   const book=new ExcelJS.Workbook();book.creator='Actualizador de Integraciones EJE No Penal';
   const tabs=[
@@ -39,7 +40,8 @@ export async function GET(req:NextRequest){
    {name:'Auditoría',labels:['Hallazgo ID','Decisión','Motivo','Responsable aprobación','Fecha'],rows:audit.rows.map(r=>[r.finding_id,r.decision,r.reason,r.actor_email,r.created_at])},
    {name:'Cotejo Calendar',labels:['Sesión','Fecha y hora','Enlace','Resultado de cotejo','Sustento','Responsable','Fecha revisión','Integraciones relacionadas'],rows:coverage.rows.map(r=>[r.session,r.start_at,r.event_url,r.status||'Por cotejar',r.notes||'',r.checked_by||'',r.checked_at||'',r.integrations||''])},
    {name:'Propuestas ChatGPT',labels:['Integración','Fecha','Sesión o fuente','URL','Hecho','Acuerdo','Pendiente','Responsable','Evidencia','Estado propuesto','Revisión','Registro'],rows:proposals.rows.map(r=>[r.integration,r.observed_on,r.source_name,r.source_url,r.detail,r.agreement,r.pending,r.responsible,r.evidence_quote,r.proposed_status,r.review_status,r.created_at])},
-   {name:'Auditoría ChatGPT',labels:['Propuesta ID','Decisión','Motivo','Aprobador','Fecha'],rows:proposalAudit.rows.map(r=>[r.proposal_id,r.decision,r.reason,r.actor_email,r.acted_at])}
+   {name:'Auditoría ChatGPT',labels:['Propuesta ID','Decisión','Motivo','Aprobador','Fecha'],rows:proposalAudit.rows.map(r=>[r.proposal_id,r.decision,r.reason,r.actor_email,r.acted_at])},
+   {name:'Auditoría cotejo',labels:['Sesión','Fecha sesión','Estado anterior','Estado nuevo','Sustento','Responsable revisión','Fecha de registro'],rows:reconciliationAudit.rows.map(r=>[r.session,r.start_at,r.previous_status,r.new_status,r.notes,r.actor_email,r.changed_at])}
   ];
   for(const t of tabs){
    const ws=book.addWorksheet(t.name);header(ws,t.labels);
