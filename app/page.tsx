@@ -117,7 +117,13 @@ function Portal(){
     <div><span>Fuentes identificadas</span><strong>{sourceCount}</strong><small>{videos} videos sin revisión automática</small></div>
     <div><span>Actualización</span><strong className="short">ChatGPT + Neon</strong><small>Sin consumo de OpenAI API en la web</small></div>
    </section>
-   <section className="panel">
+   <nav className="tabs">
+    <button className={tab==='baseline'?'active':''} onClick={()=>setTab('baseline')}>Línea base y cotejo</button>
+    <button className={tab==='sessions'?'active':''} onClick={()=>setTab('sessions')}>Sesiones</button>
+    <button className={tab==='integrations'?'active':''} onClick={()=>setTab('integrations')}>Bitácoras y actualización</button>
+    <button className={tab==='pending'?'active':''} onClick={()=>setTab('pending')}>Pendientes y responsables</button>
+   </nav>
+   {(tab==='baseline'||tab==='sessions')&&<section className="panel">
     <div className="sectionhead"><h2>Consultar sesiones y cotejar historial</h2><span>Calendar: {session.user?.email}</span></div>
     <div className="fields">
      <label><span>Modalidad</span><select value={single?'one':'range'} onChange={e=>setSingle(e.target.value==='one')}><option value="range">Rango de fechas</option><option value="one">Fecha específica</option></select></label>
@@ -137,15 +143,10 @@ function Portal(){
     </div>
     <p className="helper">Buscar sesiones registra eventos y documentos de Calendar en Neon. La revisión técnica y funcional se realiza desde ChatGPT y las propuestas se aprueban en la web. El inventario por sí mismo no acredita que una sesión fue revisada.</p>
     <div className="notice"><b>Sin API de pago:</b> la web no envía transcripciones a proveedores externos de IA. La lectura y el análisis de sesiones se gestionan bajo demanda desde ChatGPT; Neon conserva la línea base, los cotejos y las propuestas para aprobación.</div>
-   </section>
+   </section>}
    {error&&<div className="warn">{error}</div>}
    {message&&<div className="success">{message}</div>}
-   <nav className="tabs">
-    <button className={tab==='baseline'?'active':''} onClick={()=>setTab('baseline')}>Línea base y cotejo</button>
-    <button className={tab==='sessions'?'active':''} onClick={()=>setTab('sessions')}>Sesiones</button>
-    <button className={tab==='integrations'?'active':''} onClick={()=>setTab('integrations')}>Bitácoras y actualización</button>
-    <button className={tab==='pending'?'active':''} onClick={()=>setTab('pending')}>Pendientes y responsables</button>
-   </nav>
+
    {tab==='baseline'&&<BaselineWorkspace from={rangeFrom} to={rangeTo} integrations={integrations} onRefresh={refresh}/>}
    {tab==='sessions'&&<div className="twocol">
     <section className="panel sessionlist">
