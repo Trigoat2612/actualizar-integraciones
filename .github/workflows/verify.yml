@@ -17,5 +17,7 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Comprobar TypeScript
         run: npm run typecheck
+      - name: Verificar separación de datos Excel y propuestas
+        run: npm test
       - name: Compilar Next.js
         run: npm run build
