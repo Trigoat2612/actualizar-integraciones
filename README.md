@@ -84,3 +84,20 @@ El motor OpenAI API es opcional y **NO** forma parte del flujo principal. Manten
 **Base de datos:** ejecutar db/migration_baseline.sql solo en una instalación nueva. La migración aditiva ya fue aplicada al proyecto Neon vinculado.
 
 **Seguridad:** la web exige Google OAuth + ALLOWED_EMAIL, y ninguna clave o transcripción se añade al repositorio GitHub. La consulta desde ChatGPT y el almacenamiento Neon deben cumplir las políticas institucionales del Poder Judicial; no enviar contenidos sensibles a otros proveedores sin autorización.
+
+
+## Flujo sencillo de bitácoras (columna G)
+
+La pantalla inicial **Bitácoras y actualización** usa exclusivamente las 35 integraciones del esquema existente.
+No llama una API externa de IA, no cambia estados de integración y no edita el archivo Office original alojado en Google Drive.
+
+1. Seleccionar una integración. Consultar su historial en tarjetas cronológicas, filtrar menciones de pendientes y desplegar solo los detalles que interesan.
+2. Registrar una novedad en lenguaje sencillo o pegar hasta 25 líneas con este formato:
+   `DD/MM - Hecho concreto. | Acuerdo: Equipo: Acción. | Pendiente: Equipo: Acción.`
+   Introducir el año en la fecha de referencia (o usar `DD/MM/AAAA`), identificar la reunión, acta o correo y aportar un enlace HTTPS o una cita verificable.
+3. Pulsar **Guardar como propuesta**. La API comprueba formato, fecha, integración, sustento y duplicados exactos; guarda propuestas en `integraciones_laboral.chatgpt_review_proposals`, sin cambiar `integraciones_laboral.integrations.situational_log`.
+4. Revisar cada propuesta con su fuente y pulsar **Aprobar e incorporar** o **Rechazar**. La ruta de decisión preexistente incorpora solo los registros aprobados a la bitácora Neon y deja trazabilidad.
+5. **Descargar Excel actualizado** desde la aplicación. Este archivo exportado refleja la bitácora Neon y evita volver a copiar la columna G manualmente. La exportación no actualiza automáticamente el documento Drive original.
+
+Los indicadores de "pendiente" en el historial indican **menciones históricas**, no aseguran que el problema siga abierto.
+La deduplicación es exacta, no una detección semántica de hechos equivalentes.
