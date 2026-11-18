@@ -1,6 +1,7 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {authorized} from '../../../lib/security';
 import {db,cleanError} from '../../../lib/db';
+import {readPublishedIntegrations} from '../../../lib/publication';
 import ExcelJS from 'exceljs';
 export const runtime='nodejs';export const maxDuration=120;
 function safe(v:unknown){
@@ -20,7 +21,7 @@ export async function GET(req:NextRequest){
  try{
   const pool=db();
   const [cat,events,sources,findings,audit,coverage,proposals,proposalAudit,reconciliationAudit]=await Promise.all([
-   pool.query("SELECT i.source_numero,i.name,i.status,i.dependency,i.criticality,i.situational_log,COALESCE(r.observation,'') AS observation,COALESCE(r.environment_enablement,'') AS environment_enablement,COALESCE(r.development_close,'') AS development_close,COALESCE(r.test_close,'') AS test_close,COALESCE(r.validation_close,'') AS validation_close,COALESCE(r.documentation,'') AS documentation,COALESCE(r.considerations,'') AS considerations FROM integraciones_laboral.integrations i LEFT JOIN integraciones_laboral.baseline_integration_rows r ON r.integration_id=i.id AND r.version_id=(SELECT id FROM integraciones_laboral.baseline_versions WHERE active=true LIMIT 1) ORDER BY i.numero"),
+   readPublishedIntegrations(pool),
    pool.query('SELECT id,title,start_at,event_url,event_status,last_seen_at FROM integraciones_laboral.calendar_events ORDER BY start_at DESC LIMIT 5000'),
    pool.query('SELECT e.title AS session,e.start_at,s.title,s.source_url,s.mime_type,s.read_status,s.processed_chunks,s.total_chunks,s.error_detail FROM integraciones_laboral.calendar_event_sources s JOIN integraciones_laboral.calendar_events e ON e.id=s.event_id ORDER BY e.start_at DESC LIMIT 15000'),
    pool.query('SELECT i.name AS integration,e.title AS session,f.happened_on,f.detail,f.agreement,f.pending,f.owner_team,f.proposed_status,f.review_status,f.evidence_excerpt,s.source_url FROM integraciones_laboral.integration_findings f JOIN integraciones_laboral.calendar_events e ON e.id=f.event_id JOIN integraciones_laboral.integrations i ON i.id=f.integration_id JOIN integraciones_laboral.calendar_event_sources s ON s.id=f.source_id ORDER BY f.happened_on DESC,f.id DESC LIMIT 15000'),
@@ -32,7 +33,7 @@ export async function GET(req:NextRequest){
   ]);
   const book=new ExcelJS.Workbook();book.creator='Actualizador de Integraciones EJE No Penal';
   const tabs=[
-   {name:'Seguimiento',labels:['N°','Sistema a Integrar','Observación','Estado','Dependencia','Habilitacion de ambiente','Estado Situacional','F. Cierre Desarrollo','F.Cierre Pruebas - Softpla/GTI','F.Validacion GSJ','Documentación','Criticidad','Consideraciones'],rows:cat.rows.map(r=>[r.source_numero,r.name,r.observation,r.status,r.dependency,r.environment_enablement,r.situational_log,r.development_close,r.test_close,r.validation_close,r.documentation,r.criticality,r.considerations])},
+   {name:'Seguimiento',labels:['N°','Sistema a Integrar','Observación','Estado','Dependencia','Habilitacion de ambiente','Estado Situacional','F. Cierre Desarrollo','F.Cierre Pruebas - Softpla/GTI','F.Validacion GSJ','Documentación','Criticidad','Consideraciones'],rows:cat.map(r=>[r.source_numero,r.name,r.observation,r.status,r.dependency,r.environment_enablement,r.situational_log,r.development_close,r.test_close,r.validation_close,r.documentation,r.criticality,r.considerations])},
    {name:'Sesiones revisadas',labels:['ID','Sesión','Inicio (UTC)','Evento Calendar','Estado Calendar','Última detección'],rows:events.rows.map(r=>[r.id,r.title,r.start_at,r.event_url,r.event_status,r.last_seen_at])},
    {name:'Fuentes',labels:['Sesión','Inicio (UTC)','Documento','URL','Tipo','Lectura','Fragmentos procesados','Total fragmentos','Error'],rows:sources.rows.map(r=>[r.session,r.start_at,r.title,r.source_url,r.mime_type,r.read_status,r.processed_chunks,r.total_chunks,r.error_detail])},
    {name:'Historial por integración',labels:['Integración','Sesión','Fecha','Hecho','Acuerdo','Pendiente','Responsable','Estado propuesto','Revisión','Cita de evidencia','URL fuente'],rows:findings.rows.map(r=>[r.integration,r.session,r.happened_on,r.detail,r.agreement,r.pending,r.owner_team,r.proposed_status,r.review_status,r.evidence_excerpt,r.source_url])},
