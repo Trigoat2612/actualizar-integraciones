@@ -65,9 +65,15 @@ export async function POST(req:NextRequest){
   const client=await db().connect();
   try{
    await client.query('BEGIN');
+   // Comparar duplicados solo con el Excel vigente, no con anexos operativos.
    const master=await client.query(
-    'SELECT id,name,situational_log FROM integraciones_laboral.integrations WHERE id=$1',[integrationId]);
-   if(!master.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'Integración no encontrada'},{status:404})}
+    "SELECT i.id,i.name,t.situational_history AS situational_log "+
+    "FROM integraciones_laboral.integrations i "+
+    "JOIN public.tactical_tracking t ON LOWER(BTRIM(i.name))=LOWER(BTRIM(t.integration_name)) AND t.is_active=TRUE "+
+    "JOIN public.migration_source_controls c ON c.module_key='resumen_tactico' AND c.active_source='neon' "+
+    "AND c.neon_read_enabled=TRUE AND t.source_batch_id=c.published_batch_id "+
+    "WHERE i.id=$1",[integrationId]);
+   if(!master.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'Integración sin línea publicada en Excel. No se utilizarán otros historiales.'},{status:409})}
    const history=String(master.rows[0].situational_log||'').split(/\r?\n/).map(normalized);
    let created=0,duplicates=0,historical=0;
    const ids:number[]=[];
@@ -88,7 +94,7 @@ export async function POST(req:NextRequest){
    }
    await client.query('COMMIT');
    return NextResponse.json({created,duplicates,historical,proposalIds:ids,
-    message:'Los nuevos registros quedaron como propuestas. La bitácora aprobada sigue intacta.'},
+    message:'Los registros quedaron como propuestas separadas. Solo una nueva publicación del Excel cambia la columna G oficial.'},
     {headers:{'Cache-Control':'no-store'}});
   }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
  }catch(e){return NextResponse.json({error:cleanError(e)},{status:500})}
