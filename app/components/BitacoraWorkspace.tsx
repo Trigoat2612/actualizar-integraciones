@@ -7,7 +7,7 @@ type Integration={
 };
 type Entry={observedOn:string;detail:string;agreement:string;pending:string;responsible:string};
 type Proposal=Entry&{
- id:number;integration_id:number;integration:string;observed_on:string;
+ id:number;integration_id:number|string;integration:string;observed_on:string;
  source_name:string;source_url:string;evidence_quote:string;review_status:string;source_kind:string;
 };
 type Note={id:string;date:string;detail:string;agreement:string;pending:string;raw:string;sortKey:number};
@@ -105,7 +105,7 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
  const simpleEntry:Entry={observedOn:day,detail:detail.trim(),agreement:agreement.trim(),
   pending:pending.trim(),responsible:responsible.trim()};
  const entries=mode==='paste'?fromPaste.entries:[simpleEntry];
- const pendingProposals=proposals.filter(p=>p.integration_id===active?.id&&p.review_status==='Propuesto');
+ const pendingProposals=proposals.filter(p=>String(p.integration_id)===String(active?.id)&&p.review_status==='Propuesto');
  async function save(){
   if(!active)return;
   if(mode==='paste'&&(fromPaste.invalid.length||!fromPaste.entries.length)){
@@ -265,6 +265,7 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
       {p.agreement&&<p><strong>Acuerdo:</strong> {p.agreement}</p>}
       {p.pending&&<p><strong>Pendiente:</strong> {p.responsible}: {p.pending}</p>}
       <small>Fuente: {p.source_name} {p.source_url&&<a href={p.source_url} target="_blank" rel="noopener noreferrer">Ver fuente</a>}</small>
+      {p.evidence_quote&&<p><strong>Sustento:</strong> {summary(p.evidence_quote,320)}</p>}
       <div className="journal-buttons">
        <button className="ui-primary" disabled={saving} onClick={()=>decide(p,'Aprobado')}>Aprobar e incorporar</button>
        <button className="ui-secondary" disabled={saving} onClick={()=>decide(p,'Rechazado')}>Rechazar</button>
