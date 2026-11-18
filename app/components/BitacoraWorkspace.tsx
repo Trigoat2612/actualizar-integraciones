@@ -22,27 +22,34 @@ async function api<T>(url:string,init?:RequestInit):Promise<T>{
  return data as T;
 }
 function extractParts(value:string){
- const sections=value.split(/\s*\|\s*(?=(?:Acuerdo|Pendiente)\s*:)/i);
+ const sections=value.split(/\s*\|\s*(?=(?:Acuerdo(?:s|\s+del\s+\d{1,2}\/\d{1,2})?|Pendientes?)\s*:)/i);
  const detail=clean(sections[0]||'');
- const agreement=clean((sections.find(s=>/^Acuerdo\s*:/i.test(s))||'').replace(/^Acuerdo\s*:/i,''));
- const pending=clean((sections.find(s=>/^Pendiente\s*:/i.test(s))||'').replace(/^Pendiente\s*:/i,''));
+ const agreementPart=sections.find(s=>/^Acuerdo(?:s|\s+del\s+\d{1,2}\/\d{1,2})?\s*:/i.test(s))||'';
+ const pendingPart=sections.find(s=>/^Pendientes?\s*:/i.test(s))||'';
+ const agreement=clean(agreementPart.replace(/^Acuerdo(?:s|\s+del\s+\d{1,2}\/\d{1,2})?\s*:/i,''));
+ const pending=clean(pendingPart.replace(/^Pendientes?\s*:/i,''));
  return {detail,agreement,pending};
 }
+const journalHeading=/^(\d{1,2}\/\d{1,2}(?:\/\d{4})?(?:\s*(?:y|al|a|hasta|,|[-–—])\s*\d{1,2}\/\d{1,2}(?:\/\d{4})?)*)\s*[-–—]\s*([\s\S]*)$/i;
 function historyNotes(value:string):Note[]{
  const groups:string[]=[];let last='';
- for(const line of value.replace(/\r/g,'').split('\n').map(s=>s.trim()).filter(Boolean)){
-  if(/^\d{1,2}\/\d{1,2}(?:\/\d{4})?\s*[-–—]/.test(line)){
-   if(last)groups.push(last);
-   last=line;
-  }else last+=(last?' ':'')+line;
+ for(const line of value.replace(/\r/g,'').split('\n').map(v=>v.trim()).filter(Boolean)){
+  if(journalHeading.test(line)){if(last)groups.push(last);last=line;}
+  else last+=(last?'\n':'')+line;
  }
  if(last)groups.push(last);
  return groups.map((raw,index)=>{
-  const match=raw.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\s*[-–—]\s*([\s\S]*)$/);
-  const date=match?(match[1].padStart(2,'0')+'/'+match[2].padStart(2,'0')+(match[3]?'/'+match[3]:'')):'Sin fecha';
-  const parts=extractParts(match?match[4]:raw);
-  const sortKey=match?(Number(match[3]||'2026')*10000+Number(match[2])*100+Number(match[1])):0;
-  return {id:String(index),date,raw,...parts,sortKey};
+  const match=raw.match(journalHeading);
+  const label=match?match[1].replace(/\s+/g,' ').trim():'Sin fecha';
+  const matches=label.match(/\d{1,2}\/\d{1,2}(?:\/\d{4})?/g)||[];
+  const sortKey=matches.reduce((best,part)=>{
+   const [d,m,y]=part.split('/').map(Number),year=y||2026;
+   const check=new Date(Date.UTC(year,m-1,d));
+   return check.getUTCFullYear()===year&&check.getUTCMonth()===m-1&&check.getUTCDate()===d
+    ?Math.max(best,year*10000+m*100+d):best;
+  },0);
+  const parts=extractParts(match?match[2]:raw);
+  return {id:String(index),date:sortKey?label:'Sin fecha',raw,...parts,sortKey};
  }).sort((a,b)=>b.sortKey-a.sortKey||Number(b.id)-Number(a.id));
 }
 function parsePasted(value:string,defaultYear:string):{entries:Entry[];invalid:string[]}{
@@ -132,7 +139,7 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
   }catch(e){setError(errorText(e))}finally{setSaving(false)}
  }
  async function decide(p:Proposal,decision:'Aprobado'|'Rechazado'){
-  if(!window.confirm((decision==='Aprobado'?'¿Incorporar este registro a la bitácora Neon?':'¿Descartar este registro?')+
+  if(!window.confirm((decision==='Aprobado'?'¿Aprobar la propuesta? No cambiará la columna G hasta que se publique el Excel.':'¿Descartar este registro?')+
    '\n\n'+asG({observedOn:p.observed_on.slice(0,10),detail:p.detail,agreement:p.agreement,
     pending:p.pending,responsible:p.responsible})))return;
   const reason=decision==='Rechazado'?(window.prompt('Motivo del rechazo:')||''):'';
@@ -141,7 +148,7 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
    await api('/api/proposals/'+p.id+'/decision',{method:'POST',
     headers:{'Content-Type':'application/json'},body:JSON.stringify({decision,reason,confirm:true})});
    await Promise.all([refreshProposals(),onRefresh()]);
-   setMessage(decision==='Aprobado'?'Registro aprobado e incorporado a Neon.':'Propuesta rechazada, sin alterar el historial.');
+   setMessage(decision==='Aprobado'?'Propuesta aprobada con auditoría. La columna G oficial sigue intacta hasta publicar el Excel.':'Propuesta rechazada, sin alterar el historial.');
   }catch(e){setError(errorText(e))}finally{setSaving(false)}
  }
  async function copyHistory(){
@@ -188,7 +195,7 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
      {!filtered.length&&<p className="empty-state">No hay registros para los filtros seleccionados.</p>}
      {filtered.map(n=><details key={n.id} className="journal-note">
       <summary><span className="journal-date">{n.date}</span><span className="journal-teaser">{summary(n.detail)}</span>
-       {n.pending&&<span className="journal-pending-tag">Pendiente citado</span>}</summary>
+ </summary>
       <div className="journal-note-detail">
        <div><b>Hecho</b><p>{n.detail}</p></div>
        {n.agreement&&<div className="journal-agreement"><b>Acuerdo</b><p>{n.agreement}</p></div>}
@@ -253,7 +260,7 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
      <button className="ui-primary journal-save" disabled={saving||!active} onClick={save}>
       {saving?'Guardando…':'Guardar como propuesta'}
      </button>
-     <p className="helper">No cambia el estado de la integración, no cierra incidencias y no edita el Excel original.</p>
+     <p className="helper">No cambia el estado ni la columna G publicada. Los rangos históricos se visualizan completos; para registrar propuestas nuevas utiliza una fecha única.</p>
     </section>
     <section className="panel journal-approvals">
      <div className="base-header"><div><h2>Por aprobar</h2><p className="muted">{pendingProposals.length} propuesta(s) de esta integración</p></div>
@@ -267,7 +274,7 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
       <small>Fuente: {p.source_name} {p.source_url&&<a href={p.source_url} target="_blank" rel="noopener noreferrer">Ver fuente</a>}</small>
       {p.evidence_quote&&<p><strong>Sustento:</strong> {summary(p.evidence_quote,320)}</p>}
       <div className="journal-buttons">
-       <button className="ui-primary" disabled={saving} onClick={()=>decide(p,'Aprobado')}>Aprobar e incorporar</button>
+       <button className="ui-primary" disabled={saving} onClick={()=>decide(p,'Aprobado')}>Aprobar propuesta</button>
        <button className="ui-secondary" disabled={saving} onClick={()=>decide(p,'Rechazado')}>Rechazar</button>
       </div>
      </article>)}
