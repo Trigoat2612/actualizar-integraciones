@@ -2,6 +2,7 @@
 import {useEffect,useState} from 'react';
 import {signIn,signOut,useSession,SessionProvider} from 'next-auth/react';
 import BaselineWorkspace from './components/BaselineWorkspace';
+import BitacoraWorkspace from './components/BitacoraWorkspace';
 
 type Session={id:number;title:string;start_at:string;event_url:string;source_count:number;read_count:number;chatgpt_summary_count:number;no_summary_count:number;video_count:number;findings_count:number;integrations:string|null};
 type Integration={id:number;source_numero:string;name:string;status:string;dependency:string;criticality:string;situational_log:string};
@@ -19,7 +20,7 @@ async function request(url:string,init?:RequestInit){
 }
 function Portal(){
  const {data:session,status}=useSession();
- const [tab,setTab]=useState<'baseline'|'sessions'|'integrations'|'pending'>('baseline');
+ const [tab,setTab]=useState<'baseline'|'sessions'|'integrations'|'pending'>('integrations');
  const [health,setHealth]=useState<Health|null>(null);
  const [from,setFrom]=useState('2026-11-04'),[to,setTo]=useState(today),[single,setSingle]=useState(true);
  const [day,setDay]=useState('2026-11-04'),[scope,setScope]=useState('Todas'),[force,setForce]=useState(false);
@@ -27,7 +28,7 @@ function Portal(){
  const [detail,setDetail]=useState<Detail|null>(null),[selected,setSelected]=useState<number|null>(null);
  const [historical,setHistorical]=useState<HistoricalPending[]>([]);
  const [loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('');
- const [batchId,setBatchId]=useState<number|null>(null),[showHistory,setShowHistory]=useState<number|null>(null);
+ const [batchId,setBatchId]=useState<number|null>(null);
  const [syntheticResult,setSyntheticResult]=useState<{model:string;validFindings:number;checks:{expectedIntegration:boolean;evidenceGrounded:boolean};findings:Array<{integration:string;happened:string;pending:string;responsible:string;evidence:string}>}|null>(null);
  const rangeFrom=single?day:from,rangeTo=single?day:to;
  useEffect(()=>{request('/api/health').then(setHealth).catch(()=>{});},[]);
@@ -104,7 +105,7 @@ function Portal(){
    <div className="topright"><span className="tag">Bajo demanda</span>{session&&<button className="ghost" onClick={()=>signOut()}>Cerrar sesión</button>}</div>
   </header>
   <section className="hero"><div className="eyebrow">GESTIÓN TÉCNICA Y FUNCIONAL</div><h1>Actualizador de integraciones</h1>
-   <p>Conserva el Excel como línea base, coteja las sesiones de Calendar y revisa en Neon las propuestas generadas desde ChatGPT.</p></section>
+   <p>Consulta la bitácora en una línea de tiempo y agrega novedades desde un formulario sencillo. Las propuestas se revisan antes de incorporarse a Neon.</p></section>
   {!session?<section className="panel login">
    <h2>Acceso privado</h2><p>El portal solo permite ingresar con la cuenta autorizada de Google Calendar. Los resultados se almacenan en Neon.</p>
    {health&&!health.ready&&<div className="warn">Configuración pendiente: {health.missing.join(', ')}.</div>}
@@ -142,7 +143,7 @@ function Portal(){
    <nav className="tabs">
     <button className={tab==='baseline'?'active':''} onClick={()=>setTab('baseline')}>Línea base y cotejo</button>
     <button className={tab==='sessions'?'active':''} onClick={()=>setTab('sessions')}>Sesiones</button>
-    <button className={tab==='integrations'?'active':''} onClick={()=>setTab('integrations')}>Por integración</button>
+    <button className={tab==='integrations'?'active':''} onClick={()=>setTab('integrations')}>Bitácoras y actualización</button>
     <button className={tab==='pending'?'active':''} onClick={()=>setTab('pending')}>Pendientes y responsables</button>
    </nav>
    {tab==='baseline'&&<BaselineWorkspace from={rangeFrom} to={rangeTo} integrations={integrations} onRefresh={refresh}/>}
@@ -184,14 +185,7 @@ function Portal(){
      </>}
     </section>
    </div>}
-   {tab==='integrations'&&<section className="panel"><h2>Seguimiento por integración</h2>
-    <div className="integrations">{integrations.map(i=><div key={i.id} className="integration">
-     <button className="integrationtop" onClick={()=>setShowHistory(showHistory===i.id?null:i.id)}>
-      <b>{i.source_numero} · {i.name}</b><span>{i.status} · {i.dependency||'Sin dependencia registrada'}</span>
-     </button>
-     {showHistory===i.id&&<div className="history"><p>Bitácora histórica del Excel oficial; solo se amplía con cambios nuevos aprobados:</p><pre>{i.situational_log||'Sin historial documentado'}</pre></div>}
-    </div>)}</div>
-   </section>}
+   {tab==='integrations'&&<BitacoraWorkspace integrations={integrations} onRefresh={refresh}/>}
    {tab==='pending'&&<section className="panel"><h2>Pendientes documentados por integración</h2>
     <p className="muted">Se distinguen los últimos pendientes explícitos de la bitácora histórica y los nuevos hallazgos aprobados. Ningún pendiente debe considerarse todavía abierto o cerrado sin confirmar su situación en las sesiones posteriores.</p>
     <h3>Últimos pendientes citados en la línea base ({historical.filter(f=>f.last_pending).length})</h3>
