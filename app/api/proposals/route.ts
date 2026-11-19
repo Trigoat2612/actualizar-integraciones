@@ -13,7 +13,7 @@ export async function GET(req:NextRequest){
     return NextResponse.json({error:'Fecha inválida'},{status:400});
    where='WHERE p.observed_on >= $1::date AND p.observed_on <= $2::date';params.push(from,to);
   }
-  const r=await pool.query('SELECT p.id,p.integration_id,i.name AS integration,p.event_id,p.observed_on,p.source_name,p.source_url,p.detail,p.agreement,p.pending,p.responsible,p.evidence_quote,p.proposed_status,p.source_kind,p.review_status,p.created_at FROM integraciones_laboral.chatgpt_review_proposals p JOIN integraciones_laboral.integrations i ON i.id=p.integration_id '+where+' ORDER BY p.observed_on DESC,p.id DESC LIMIT 1000',params);
+  const r=await pool.query('SELECT p.id,p.integration_id,i.name AS integration,p.event_id,p.observed_on,p.source_name,p.source_url,p.detail,p.agreement,p.pending,p.responsible,p.evidence_quote,p.proposed_status,p.source_kind,p.review_status,p.created_at,p.approved_at,p.fingerprint,(SELECT COUNT(*)::int FROM integraciones_laboral.chatgpt_proposal_edit_audit a WHERE a.proposal_id=p.id) AS edit_count FROM integraciones_laboral.chatgpt_review_proposals p JOIN integraciones_laboral.integrations i ON i.id=p.integration_id '+where+' ORDER BY p.observed_on DESC,p.id DESC LIMIT 1000',params);
   return NextResponse.json({proposals:r.rows,manualApprovalRequired:true},{headers:{'Cache-Control':'no-store'}});
  }catch(e){return NextResponse.json({error:cleanError(e)},{status:500})}
 }
