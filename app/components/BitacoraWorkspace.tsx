@@ -3,14 +3,19 @@ import {useEffect,useMemo,useState} from 'react';
 
 type Integration={
  id:number;source_numero:string;name:string;status:string;
- dependency:string;criticality:string;situational_log:string;
+ dependency:string;criticality:string;situational_log:string;published_at?:string|null;
 };
 type Entry={observedOn:string;detail:string;agreement:string;pending:string;responsible:string};
 type Proposal=Entry&{
  id:number;integration_id:number|string;integration:string;observed_on:string;
  source_name:string;source_url:string;evidence_quote:string;review_status:string;source_kind:string;
+ fingerprint:string;approved_at:string|null;edit_count:number;
 };
 type Note={id:string;date:string;detail:string;agreement:string;pending:string;raw:string;sortKey:number};
+type EditDraft=Entry&{
+ id:string;integrationId:string;sourceName:string;sourceUrl:string;
+ evidenceQuote:string;expectedFingerprint:string;reason:string;
+};
 const currentDay=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/Lima'});
 const clean=(s:string)=>s.replace(/\s+/g,' ').trim();
 const summary=(s:string,max=160)=>s.length>max?s.slice(0,max).trimEnd()+'…':s;
@@ -95,6 +100,7 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
  const [pasted,setPasted]=useState('');
  const [sourceName,setSourceName]=useState(''),[sourceUrl,setSourceUrl]=useState(''),[evidenceQuote,setEvidenceQuote]=useState('');
  const [proposals,setProposals]=useState<Proposal[]>([]);
+ const [editing,setEditing]=useState<EditDraft|null>(null);
  const [saving,setSaving]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
  useEffect(()=>{if(!selected&&integrations.length)setSelected(String(integrations[0].id));},[selected,integrations]);
  async function refreshProposals(){
@@ -113,6 +119,54 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
   pending:pending.trim(),responsible:responsible.trim()};
  const entries=mode==='paste'?fromPaste.entries:[simpleEntry];
  const pendingProposals=proposals.filter(p=>String(p.integration_id)===String(active?.id)&&p.review_status==='Propuesto');
+ // Solo las aprobadas después del lote Excel vigente pueden prepararse para la siguiente publicación.
+ const approvedAfterPublication=proposals.filter(p=>String(p.integration_id)===String(active?.id)&&
+   p.review_status==='Aprobado'&&Boolean(p.approved_at)&&Boolean(active?.published_at)&&
+   new Date(p.approved_at as string).getTime()>new Date(active?.published_at as string).getTime());
+ const normalizedLine=(line:string)=>clean(line).toLocaleLowerCase('es');
+ const existingLines=new Set((active?.situational_log||'').split(/\r?\n/).map(normalizedLine));
+ const linesToPublish=approvedAfterPublication.map(p=>({proposal:p,line:asG({
+    observedOn:p.observed_on.slice(0,10),detail:p.detail,agreement:p.agreement,
+    pending:p.pending,responsible:p.responsible
+  })})).filter(row=>!existingLines.has(normalizedLine(row.line)));
+ function startEditing(p:Proposal){
+  setError('');setMessage('');
+  setEditing({id:String(p.id),integrationId:String(p.integration_id),observedOn:p.observed_on.slice(0,10),
+   detail:p.detail,agreement:p.agreement,pending:p.pending,responsible:p.responsible==='Por determinar'?'':p.responsible,
+   sourceName:p.source_name,sourceUrl:p.source_url,evidenceQuote:p.evidence_quote,
+   expectedFingerprint:p.fingerprint,reason:''});
+ }
+ function editField<K extends keyof EditDraft>(field:K,value:EditDraft[K]){
+  setEditing(previous=>previous?{...previous,[field]:value}:previous);
+ }
+ async function saveEdit(){
+  if(!editing)return;
+  if(!editing.integrationId||!editing.observedOn||editing.detail.trim().length<15||
+   !editing.sourceName.trim()||(editing.pending.trim()&&!editing.responsible.trim())||
+   (!editing.sourceUrl.trim()&&editing.evidenceQuote.trim().length<15)){
+   setError('Completa la integración, fecha, hecho, responsable del pendiente y fuente verificable.');return;
+  }
+  setSaving(true);setError('');setMessage('');
+  try{
+   const result=await api<{changed:boolean;message:string}>('/api/proposals/'+editing.id,{
+    method:'PATCH',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(editing)
+   });
+   const target=editing.integrationId;
+   setEditing(null);
+   setSelected(target);
+   await refreshProposals();
+   setMessage(result.message||'Propuesta editada. Revisa el contenido antes de aprobarla.');
+  }catch(e){setError(errorText(e))}finally{setSaving(false)}
+ }
+ async function prepareG(){
+  if(!active||!linesToPublish.length)return;
+  const text=[active.situational_log.trimEnd(),...linesToPublish.map(v=>v.line)].filter(Boolean).join('\n');
+  try{
+   await navigator.clipboard.writeText(text);
+   setMessage('Columna G preparada con '+linesToPublish.length+' propuesta(s) aprobada(s). Pega el texto en la celda G del Excel de esta integración y publica una nueva versión para que aparezca en Seguimiento.');
+  }catch{setError('No se pudo copiar. Revisa los permisos del portapapeles.')}
+ }
  async function save(){
   if(!active)return;
   if(mode==='paste'&&(fromPaste.invalid.length||!fromPaste.entries.length)){
@@ -139,6 +193,7 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
   }catch(e){setError(errorText(e))}finally{setSaving(false)}
  }
  async function decide(p:Proposal,decision:'Aprobado'|'Rechazado'){
+  if(editing?.id===String(p.id)){setError('Guarda o cancela los cambios antes de aprobar.');return;}
   if(!window.confirm((decision==='Aprobado'?'¿Aprobar la propuesta? No cambiará la columna G hasta que se publique el Excel.':'¿Descartar este registro?')+
    '\n\n'+asG({observedOn:p.observed_on.slice(0,10),detail:p.detail,agreement:p.agreement,
     pending:p.pending,responsible:p.responsible})))return;
@@ -273,11 +328,69 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
       {p.pending&&<p><strong>Pendiente:</strong> {p.responsible}: {p.pending}</p>}
       <small>Fuente: {p.source_name} {p.source_url&&<a href={p.source_url} target="_blank" rel="noopener noreferrer">Ver fuente</a>}</small>
       {p.evidence_quote&&<p><strong>Sustento:</strong> {summary(p.evidence_quote,320)}</p>}
+      {Number(p.edit_count)>0&&<small>Ediciones registradas: {p.edit_count}</small>}
+      {editing?.id===String(p.id)&&<div className="journal-edit" aria-label={'Editar propuesta '+p.id}>
+       <div className="journal-edit-title"><h3>Editar propuesta #{p.id}</h3>
+        <span>Los cambios se guardan con auditoría; no modifican el Excel.</span></div>
+       <label className="journal-field">Integración
+        <select value={editing.integrationId} onChange={e=>editField('integrationId',e.target.value)}>
+         {integrations.map(i=><option key={i.id} value={i.id}>{i.source_numero} · {i.name}</option>)}
+        </select>
+       </label>
+       <label className="journal-field">Fecha del hecho
+        <input type="date" value={editing.observedOn} onChange={e=>editField('observedOn',e.target.value)}/>
+       </label>
+       <label className="journal-field">Hecho
+        <textarea rows={4} value={editing.detail} onChange={e=>editField('detail',e.target.value)}/>
+       </label>
+       <label className="journal-field">Acuerdo
+        <textarea rows={3} value={editing.agreement} onChange={e=>editField('agreement',e.target.value)}/>
+       </label>
+       <label className="journal-field">Pendiente
+        <textarea rows={3} value={editing.pending} onChange={e=>editField('pending',e.target.value)}/>
+       </label>
+       {editing.pending.trim()&&<label className="journal-field">Responsable
+        <input value={editing.responsible} onChange={e=>editField('responsible',e.target.value)}/>
+       </label>}
+       <label className="journal-field">Sesión, correo o documento fuente
+        <input value={editing.sourceName} onChange={e=>editField('sourceName',e.target.value)}/>
+       </label>
+       <label className="journal-field">Enlace de evidencia (HTTPS)
+        <input type="url" value={editing.sourceUrl} onChange={e=>editField('sourceUrl',e.target.value)}/>
+       </label>
+       <label className="journal-field">Cita de sustento
+        <textarea rows={3} value={editing.evidenceQuote} onChange={e=>editField('evidenceQuote',e.target.value)}/>
+       </label>
+       <label className="journal-field">Motivo del ajuste (opcional)
+        <input value={editing.reason} onChange={e=>editField('reason',e.target.value)} placeholder="Ej. Precisar el acuerdo de la sesión"/>
+       </label>
+       <div className="journal-preview"><strong>Vista previa de la anotación</strong>
+        <p>{asG(editing)}</p></div>
+       <div className="journal-buttons">
+        <button type="button" className="ui-primary" disabled={saving} onClick={saveEdit}>Guardar cambios</button>
+        <button type="button" className="ui-secondary" disabled={saving} onClick={()=>setEditing(null)}>Cancelar</button>
+       </div>
+      </div>}
       <div className="journal-buttons">
-       <button className="ui-primary" disabled={saving} onClick={()=>decide(p,'Aprobado')}>Aprobar propuesta</button>
-       <button className="ui-secondary" disabled={saving} onClick={()=>decide(p,'Rechazado')}>Rechazar</button>
+       <button className="ui-secondary" disabled={saving||Boolean(editing&&editing.id!==String(p.id))} onClick={()=>editing?.id===String(p.id)?setEditing(null):startEditing(p)}>
+        {editing?.id===String(p.id)?'Cerrar edición':'Editar'}
+       </button>
+       <button className="ui-primary" disabled={saving||editing?.id===String(p.id)} onClick={()=>decide(p,'Aprobado')}>Aprobar</button>
+       <button className="ui-secondary" disabled={saving||editing?.id===String(p.id)} onClick={()=>decide(p,'Rechazado')}>Rechazar</button>
       </div>
      </article>)}
+    </section>
+    <section className="panel journal-ready">
+     <h2>Preparar actualización para el dashboard</h2>
+     <p className="muted">Después de editar y aprobar, aquí aparecerán las propuestas aprobadas después de la última publicación del Excel que aún no están en la columna G.</p>
+     {!linesToPublish.length?<p className="empty-state">No hay propuestas nuevas aprobadas para preparar.</p>:<>
+      <div className="journal-ready-list">{linesToPublish.map(row=><details key={String(row.proposal.id)}>
+       <summary>{row.proposal.observed_on.slice(0,10)} · {summary(row.proposal.detail,110)}</summary>
+       <p>{row.line}</p>
+      </details>)}</div>
+      <button className="ui-primary journal-save" type="button" onClick={prepareG}>Copiar columna G con {linesToPublish.length} aprobada(s)</button>
+     </>}
+     <p className="helper"><strong>Publicación:</strong> Pega la columna G preparada en el Excel original de esta integración y publica la nueva versión. Solo entonces se actualizará el dashboard de Seguimiento. Las propuestas nunca se agregan al historial por aprobarlas.</p>
     </section>
    </div>
   </div>
