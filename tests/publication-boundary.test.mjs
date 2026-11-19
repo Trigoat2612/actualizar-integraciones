@@ -6,12 +6,13 @@ const text=path=>fs.readFileSync(new URL('../'+path,import.meta.url),'utf8');
 
 test('La lectura maestra usa solo el lote Excel publicado y la columna G',()=>{
  const source=text('lib/publication.ts');
- assert.match(source,/t\.situational_history AS situational_log/);
+ assert.match(source,/COALESCE\(o\.situational_history,t\.situational_history\) AS situational_log/);
  assert.match(source,/t\.source_batch_id=c\.published_batch_id/);
  assert.match(source,/LOWER\(BTRIM\(t\.integration_name\)\)=LOWER\(BTRIM\(i\.name\)\)/);
  assert.match(source,/result\.length!==35/);
  assert.doesNotMatch(source,/t\.source_row\s*=\s*i\.numero/);
  assert.doesNotMatch(source,/i\.situational_log AS situational_log/);
+ assert.match(source,/tactical_published_overrides/);
 });
 
 test('El historial, los pendientes y la exportación consultan la fuente publicada',()=>{
