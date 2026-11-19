@@ -109,4 +109,29 @@ La edición requiere sesión OAuth autorizada. `PATCH /api/proposals/[id]` exige
 
 Antes de utilizar la función se aplica la migración aditiva `db/migration_proposal_edits.sql`. Las propuestas aprobadas no se pueden editar y la acción de edición nunca modifica directamente `public.tactical_tracking`, `integraciones_laboral.integrations` ni Google Drive.
 
-El botón **Copiar columna G con aprobadas** prepara texto para la próxima publicación, pero **no publica ni actualiza automáticamente el dashboard**. Respeta la decisión institucional de que solo el Excel publicado es la fuente de verdad del historial.
+El botón **Copiar columna G con aprobadas** se conserva como opción manual; el nuevo botón **Publicar en Seguimiento** aplica directamente a Neon los cambios aprobados, sin alterar el Excel de referencia.
+
+
+## Publicación directa a Seguimiento (18/11/2026)
+
+**Alcance:** desde Bitácoras y actualización, seleccionar una integración y usar **Editar campos** para modificar
+Dependencia, Cierre de desarrollo, Cierre de pruebas SOFTPLAN/GTI, Validación GSJ y Consideraciones.
+Pulsar **Guardar cambios para publicar** prepara la edición localmente; se pueden preparar varias integraciones.
+
+**Publicar en Seguimiento** comprueba la publicación vigente y las propuestas aprobadas desde la publicación original del Excel,
+muestra el resumen de cambios, solicita confirmación explícita y aplica todo en una transacción Neon.
+No publica propuestas «Por revisar» ni vuelve a incorporar propuestas ya publicadas.
+
+La tabla `public.tactical_published_overrides` contiene únicamente los cambios **publicados**, vinculados al lote Excel
+por `source_batch_id` y `source_row`. El Excel importado (`public.tactical_tracking` y `migration_batch_rows`)
+no se modifica. `integraciones_laboral.dashboard_publications` guarda antes/después, autor y fecha.
+`integraciones_laboral.dashboard_published_proposals` evita la duplicación de aprobadas. Cada publicación
+verifica que ninguna fila editada haya cambiado desde que se preparó y que la lista de aprobadas siga siendo la misma.
+
+La API pública de Seguimiento suma únicamente estas sobreescrituras publicadas a la copia Excel de referencia.
+La ruta `/api/export` sigue generando el Excel consolidado para sincronizar el documento original más adelante.
+
+**Migración requerida, aplicada en Neon:** `db/migration_dashboard_publication.sql`.
+La aplicación pública conserva la lectura sin autenticación; **solo el Actualizador autenticado** puede escribir.
+En Seguimiento aparece el enlace «Editar campos y publicar en Seguimiento» que abre la integración
+correspondiente del Actualizador con el parámetro `sourceRow`.

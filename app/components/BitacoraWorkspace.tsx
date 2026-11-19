@@ -1,9 +1,12 @@
 'use client';
 import {useEffect,useMemo,useState} from 'react';
+import TrackingFieldPublisher from './TrackingFieldPublisher';
 
 type Integration={
  id:number;source_numero:string;name:string;status:string;
  dependency:string;criticality:string;situational_log:string;published_at?:string|null;
+ development_close?:string;test_close?:string;validation_close?:string;considerations?:string;
+ source_row?:number;source_batch_id?:string;
 };
 type Entry={observedOn:string;detail:string;agreement:string;pending:string;responsible:string};
 type Proposal=Entry&{
@@ -102,7 +105,13 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
  const [proposals,setProposals]=useState<Proposal[]>([]);
  const [editing,setEditing]=useState<EditDraft|null>(null);
  const [saving,setSaving]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
- useEffect(()=>{if(!selected&&integrations.length)setSelected(String(integrations[0].id));},[selected,integrations]);
+ useEffect(()=>{
+  if(!selected&&integrations.length){
+   const requestedRow=new URLSearchParams(window.location.search).get('sourceRow');
+   const direct=integrations.find(i=>String(i.source_row)===String(requestedRow));
+   setSelected(String(direct?.id||integrations[0].id));
+  }
+ },[selected,integrations]);
  async function refreshProposals(){
   const response=await api<{proposals:Proposal[]}>('/api/proposals');
   setProposals(response.proposals||[]);
@@ -237,6 +246,9 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
   </section>
   {error&&<div role="alert" className="warn">{error}</div>}
   {message&&<div role="status" className="success">{message}</div>}
+  <TrackingFieldPublisher integrations={integrations} selectedId={selected}
+    revision={proposals.filter(p=>p.review_status==='Aprobado').map(p=>p.id).join(',')}
+    onPublished={async()=>{await Promise.all([onRefresh(),refreshProposals()]);}}/>
   <div className="journal-grid">
    <section className="panel journal-reader">
     <div className="base-header"><div><h2>Historial</h2><p className="muted">Ordenado por fecha, con detalles plegables.</p></div>
@@ -381,8 +393,8 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
      </article>)}
     </section>
     <section className="panel journal-ready">
-     <h2>Preparar actualización para el dashboard</h2>
-     <p className="muted">Después de editar y aprobar, aquí aparecerán las propuestas aprobadas después de la última publicación del Excel que aún no están en la columna G.</p>
+     <h2>Exportación manual al Excel (opcional)</h2>
+     <p className="muted">La publicación directa en Neon ya actualiza el dashboard. Esta copia manual queda disponible para sincronizar el archivo Excel más adelante.</p>
      {!linesToPublish.length?<p className="empty-state">No hay propuestas nuevas aprobadas para preparar.</p>:<>
       <div className="journal-ready-list">{linesToPublish.map(row=><details key={String(row.proposal.id)}>
        <summary>{row.proposal.observed_on.slice(0,10)} · {summary(row.proposal.detail,110)}</summary>
@@ -390,7 +402,7 @@ export default function BitacoraWorkspace({integrations,onRefresh}:{
       </details>)}</div>
       <button className="ui-primary journal-save" type="button" onClick={prepareG}>Copiar columna G con {linesToPublish.length} aprobada(s)</button>
      </>}
-     <p className="helper"><strong>Publicación:</strong> Pega la columna G preparada en el Excel original de esta integración y publica la nueva versión. Solo entonces se actualizará el dashboard de Seguimiento. Las propuestas nunca se agregan al historial por aprobarlas.</p>
+     <p className="helper"><strong>Importante:</strong> No necesitas editar el Excel para publicar en Seguimiento. El botón superior guarda en Neon y la exportación mantiene una copia consolidada para actualizar el Excel más adelante.</p>
     </section>
    </div>
   </div>
