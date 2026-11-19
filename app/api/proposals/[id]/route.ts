@@ -99,7 +99,7 @@ export async function PATCH(req:NextRequest,{params}:{params:Promise<{id:string}
    return NextResponse.json({error:'Ya existe otra propuesta equivalente para esa fecha e integración.'},{status:409});
   }
   const before={
-   integration_id:String(old.integration_id),observed_on:String(old.observed_on).slice(0,10),
+   integration_id:String(old.integration_id),observed_on:old.observed_on instanceof Date?old.observed_on.toISOString().slice(0,10):String(old.observed_on).slice(0,10),
    detail:old.detail,agreement:old.agreement,pending:old.pending,responsible:old.responsible,
    source_name:old.source_name,source_url:old.source_url,evidence_quote:old.evidence_quote,
    fingerprint:old.fingerprint
