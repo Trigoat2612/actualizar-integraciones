@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS integraciones_laboral.chatgpt_proposal_edit_audit (
   before_data JSONB NOT NULL,
   after_data JSONB NOT NULL,
   actor_email TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT '',
   edited_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS chatgpt_proposal_edit_audit_proposal_idx
