@@ -115,7 +115,7 @@ export default function TrackingFieldPublisher({
     <div className="tracking-values">
      {fields.map(f=><div className={f.key==='considerations'?'tracking-wide':''} key={f.key}>
       <b>{f.label}</b>
-      <span>{drafts[selectedId]?.values[f.key]??values(active||{id:0,name:'',dependency:''})[f.key]||'No registrado'}</span>
+      <span>{(drafts[selectedId]?.values[f.key]??values(active||{id:0,name:'',dependency:''})[f.key])||'No registrado'}</span>
      </div>)}
     </div>}
    {drafts[selectedId]&&<p className="tracking-pending-note">Cambios preparados para esta integración, pendientes de publicación.</p>}
