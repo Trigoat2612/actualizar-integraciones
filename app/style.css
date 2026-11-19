@@ -149,3 +149,22 @@
 .journal-buttons button{flex:1;min-width:130px}
 @media(max-width:1080px){.journal-grid{grid-template-columns:1fr}.journal-timeline{max-height:none}.journal-side{display:grid;grid-template-columns:1fr 1fr;gap:14px}}
 @media(max-width:760px){.journal-side{grid-template-columns:1fr}.journal-filter-row>label{min-width:100%}.journal-counts span{flex:1}.journal-note summary{align-items:start;flex-direction:column}.journal-note::before{left:-30px}}
+
+
+/* Edición auditable de propuestas y preparación segura de la columna G */
+.journal-edit{margin-top:15px;padding:17px;border:1px solid #9bc6e4;background:#f3f9ff;border-radius:11px}
+.journal-edit-title{display:flex;flex-direction:column;gap:4px;border-bottom:1px solid #cfe2f1;padding-bottom:12px}
+.journal-edit-title h3{font-size:15px;font-weight:800;color:#1d547a;margin:0;padding:0;border:0}
+.journal-edit-title span{font-size:12px;line-height:1.5;color:#5b7890}
+.journal-edit .journal-field{margin:12px 0}
+.journal-edit .journal-field select{width:100%;background:#fff;border:1px solid #cdddea;border-radius:9px;min-height:42px}
+.journal-edit .journal-preview{background:#fff;overflow-wrap:anywhere}
+.journal-edit .journal-preview strong{font-size:12px;color:#315b7c}
+.journal-ready{border-color:#d2e3ef}
+.journal-ready-list{max-height:300px;overflow-y:auto;border:1px solid #dbe8f1;border-radius:10px;margin:12px 0}
+.journal-ready-list details{padding:12px 14px;border-bottom:1px solid #e5edf4;font-size:12px}
+.journal-ready-list details:last-child{border-bottom:0}
+.journal-ready-list summary{font-weight:750;line-height:1.55;cursor:pointer;color:#2e5877;overflow-wrap:anywhere}
+.journal-ready-list p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;color:#405f77}
+.journal-ready .helper{margin-top:15px;line-height:1.65}
+@media(max-width:640px){.journal-edit{padding:12px}.journal-proposal .journal-buttons button{min-width:105px}}
