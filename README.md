@@ -75,7 +75,7 @@ El motor OpenAI API es opcional y **NO** forma parte del flujo principal. Manten
 
 **Cotejo:** en la pestaña Línea base y cotejo se comparan las sesiones detectadas con las fechas citadas en la bitácora. Las coincidencias por fecha son candidatas, no pruebas de cobertura. Los estados de sesión son Por cotejar, Cubierta en base, Omisión detectada y Fuera de alcance; cada decisión requiere un sustento escrito y puede asociarse a varias integraciones.
 
-**Propuestas desde ChatGPT:** tras revisar una fecha mediante las conexiones ChatGPT a Calendar, Drive y Neon, el análisis puede insertar hallazgos NUEVOS en integraciones_laboral.chatgpt_review_proposals, con fuente, fecha, evidencia, responsable y huella única. La web muestra estas propuestas para aprobación o rechazo. Solo una aprobación explícita agrega texto a integrations.situational_log; la acción registra auditoría. La reimportación del Excel preserva sufijos aprobados de la versión anterior, y rechaza divergencias no conciliadas.
+**Propuestas desde ChatGPT:** tras revisar una fecha mediante las conexiones ChatGPT a Calendar, Drive y Neon, el análisis puede insertar hallazgos NUEVOS en integraciones_laboral.chatgpt_review_proposals, con fuente, fecha, evidencia, responsable y huella única. La web muestra estas propuestas para aprobación o rechazo. La aprobación registra la decisión con auditoría, pero NO modifica integrations.situational_log ni la columna G publicada. El dashboard consulta exclusivamente el lote Excel publicado; una nueva publicación actualiza su vista.
 
 **Pendientes:** la pestaña Pendientes y responsables distingue últimos pendientes explícitos en la bitácora histórica de nuevas observaciones aprobadas. Que un pendiente figure en una bitácora no acredita que siga abierto; su cierre se comprueba por sesión.
 
@@ -96,8 +96,17 @@ No llama una API externa de IA, no cambia estados de integración y no edita el 
    `DD/MM - Hecho concreto. | Acuerdo: Equipo: Acción. | Pendiente: Equipo: Acción.`
    Introducir el año en la fecha de referencia (o usar `DD/MM/AAAA`), identificar la reunión, acta o correo y aportar un enlace HTTPS o una cita verificable.
 3. Pulsar **Guardar como propuesta**. La API comprueba formato, fecha, integración, sustento y duplicados exactos; guarda propuestas en `integraciones_laboral.chatgpt_review_proposals`, sin cambiar `integraciones_laboral.integrations.situational_log`.
-4. Revisar cada propuesta con su fuente y pulsar **Aprobar e incorporar** o **Rechazar**. La ruta de decisión preexistente incorpora solo los registros aprobados a la bitácora Neon y deja trazabilidad.
-5. **Descargar Excel actualizado** desde la aplicación. Este archivo exportado refleja la bitácora Neon y evita volver a copiar la columna G manualmente. La exportación no actualiza automáticamente el documento Drive original.
+4. En **Por aprobar**, pulsar **Editar**, corregir integración, fecha, hecho, acuerdo, pendiente, responsable y fuente; revisar la vista previa y pulsar **Guardar cambios**. Se conserva el antes/después en auditoría. Luego **Aprobar** o **Rechazar**; solo las propuestas aún pendientes pueden editarse.
+5. En **Preparar actualización para el dashboard**, pulsar **Copiar columna G con aprobadas** para obtener la columna original más las aprobadas después de la última publicación, sin duplicados exactos. Pegar ese contenido en la celda G de la integración correspondiente del Excel y publicar la nueva versión. La consulta y exportación de seguimiento muestran únicamente el lote Excel ya publicado; nunca mezclan propuestas.
 
 Los indicadores de "pendiente" en el historial indican **menciones históricas**, no aseguran que el problema siga abierto.
 La deduplicación es exacta, no una detección semántica de hechos equivalentes.
+
+
+## Edición auditable y preparación para publicación (18/11/2026)
+
+La edición requiere sesión OAuth autorizada. `PATCH /api/proposals/[id]` exige que la propuesta esté en estado `Propuesto`, valida los campos y la evidencia, comprueba que la versión visible no haya cambiado y rechaza duplicados y registros ya presentes en G. Cada modificación se registra con actor, fecha, motivo y antes/después en `integraciones_laboral.chatgpt_proposal_edit_audit`.
+
+Antes de utilizar la función se aplica la migración aditiva `db/migration_proposal_edits.sql`. Las propuestas aprobadas no se pueden editar y la acción de edición nunca modifica directamente `public.tactical_tracking`, `integraciones_laboral.integrations` ni Google Drive.
+
+El botón **Copiar columna G con aprobadas** prepara texto para la próxima publicación, pero **no publica ni actualiza automáticamente el dashboard**. Respeta la decisión institucional de que solo el Excel publicado es la fuente de verdad del historial.
