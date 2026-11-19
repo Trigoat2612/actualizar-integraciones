@@ -1,4 +1,4 @@
-import type {Pool} from 'pg';
+import type {Pool,PoolClient} from 'pg';
 
 /**
  * Fuente exclusiva de lectura: último lote de Seguimiento publicado desde Excel.
@@ -11,24 +11,24 @@ export type PublishedIntegration={
  criticality:string;situational_log:string;observation:string;environment_enablement:string;
  development_close:string;test_close:string;validation_close:string;
  documentation:string;considerations:string;source_row:number;
- source_batch_id:string;source_label:string;published_at:string|null;
+ source_batch_id:string;source_label:string;published_at:string|null;last_published_at:string|null;
 };
 
-export async function readPublishedIntegrations(pool:Pool):Promise<PublishedIntegration[]>{
+export async function readPublishedIntegrations(pool:Pool|PoolClient):Promise<PublishedIntegration[]>{
  const query=[
   'SELECT i.id::text AS id, i.source_numero,t.integration_name AS name,t.status_raw AS status,',
-  't.dependency,t.criticality_raw AS criticality,t.situational_history AS situational_log,',
+  'COALESCE(o.dependency,t.dependency) AS dependency,t.criticality_raw AS criticality,COALESCE(o.situational_history,t.situational_history) AS situational_log,',
   "COALESCE(r.observation,'') AS observation,",
   "COALESCE(r.environment_enablement,'') AS environment_enablement,",
-  't.development_close,t.tests_close AS test_close,t.gsj_validation AS validation_close,',
+  'COALESCE(o.development_close,t.development_close) AS development_close,COALESCE(o.tests_close,t.tests_close) AS test_close,COALESCE(o.gsj_validation,t.gsj_validation) AS validation_close,',
   "COALESCE(r.documentation,'') AS documentation,",
-  't.considerations,t.source_row,t.source_batch_id::text AS source_batch_id,b.source_label,',
-  "(SELECT MAX(ev.created_at)::text FROM public.tactical_migration_events ev WHERE ev.batch_id=c.published_batch_id AND ev.event_type='published') AS published_at",
+  'COALESCE(o.considerations,t.considerations) AS considerations,t.source_row,t.source_batch_id::text AS source_batch_id,b.source_label,',
+  "(SELECT MAX(ev.created_at)::text FROM public.tactical_migration_events ev WHERE ev.batch_id=c.published_batch_id AND ev.event_type='published') AS published_at,",\n  "GREATEST(COALESCE((SELECT MAX(ev.created_at) FROM public.tactical_migration_events ev WHERE ev.batch_id=c.published_batch_id AND ev.event_type='published'),'epoch'::timestamptz),COALESCE((SELECT MAX(z.published_at) FROM public.tactical_published_overrides z WHERE z.source_batch_id=c.published_batch_id),'epoch'::timestamptz))::text AS last_published_at".replace(/\\n/g,'\n'),
   'FROM integraciones_laboral.integrations i',
   'JOIN public.tactical_tracking t ON LOWER(BTRIM(t.integration_name))=LOWER(BTRIM(i.name)) AND t.is_active=TRUE',
   "JOIN public.migration_source_controls c ON c.module_key='resumen_tactico' AND c.active_source='neon'",
   'AND c.neon_read_enabled=TRUE AND t.source_batch_id=c.published_batch_id',
-  'JOIN public.migration_batches b ON b.id=c.published_batch_id',
+  'JOIN public.migration_batches b ON b.id=c.published_batch_id',\n  'LEFT JOIN public.tactical_published_overrides o ON o.source_batch_id=t.source_batch_id AND o.source_row=t.source_row',
   'LEFT JOIN integraciones_laboral.baseline_integration_rows r ON r.integration_id=i.id',
   'AND r.version_id=(SELECT id FROM integraciones_laboral.baseline_versions WHERE active=TRUE ORDER BY imported_at DESC,id DESC LIMIT 1)',
   'ORDER BY i.numero'
