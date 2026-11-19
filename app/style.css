@@ -168,3 +168,27 @@
 .journal-ready-list p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;color:#405f77}
 .journal-ready .helper{margin-top:15px;line-height:1.65}
 @media(max-width:640px){.journal-edit{padding:12px}.journal-proposal .journal-buttons button{min-width:105px}}
+
+/* Edición segura del Resumen táctico con preparación por lotes y publicación directa. */
+.tracking-publisher{display:grid;grid-template-columns:1.25fr 1fr;gap:15px;align-items:start;margin-top:16px}
+.tracking-publisher>.panel{margin:0;min-width:0}
+.tracking-fields,.tracking-values{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px;row-gap:5px;margin-top:15px}
+.tracking-values>div{border:1px solid #e0eaf3;background:#f8fbfe;border-radius:9px;padding:11px;min-width:0}
+.tracking-values b{display:block;font-size:11px;color:#55728c;margin-bottom:7px}
+.tracking-values span{display:block;white-space:pre-wrap;overflow-wrap:anywhere;color:#254a66;font-size:12px;line-height:1.55}
+.tracking-fields .journal-field{margin:5px 0}
+.tracking-wide{grid-column:1/-1}
+.tracking-edit-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:8px}
+.tracking-stat-row{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0}
+.tracking-stat-row span{padding:10px;background:#eef5fb;border:1px solid #dce8f2;border-radius:9px;font-size:12px;color:#54728b;flex:1}
+.tracking-stat-row b{color:#1d5d93;font-size:18px;margin-right:7px}
+.tracking-publish-button{width:100%;margin-top:12px;min-height:46px}
+.tracking-publish-panel .helper{line-height:1.65;margin-top:15px}
+.tracking-preview{border:1px solid #dbe7ef;border-radius:10px;padding:12px;margin:10px 0;background:#fbfdff}
+.tracking-preview summary{cursor:pointer;color:#245a85;font-size:12px;font-weight:800}
+.tracking-preview>div{padding:12px 0;border-top:1px solid #dce7f0;margin-top:10px}
+.tracking-preview p{font-size:12px;color:#4f6b80;white-space:pre-wrap;overflow-wrap:anywhere}
+.tracking-preview p b{color:#294b68}
+.tracking-pending-note{font-size:12px;color:#8a6029;background:#fff8ec;border:1px solid #f2dfbe;border-radius:8px;padding:10px 12px}
+@media(max-width:1050px){.tracking-publisher{grid-template-columns:1fr}}
+@media(max-width:580px){.tracking-fields,.tracking-values{grid-template-columns:1fr}.tracking-edit-actions button{flex:1}.tracking-stat-row{flex-direction:column}}
